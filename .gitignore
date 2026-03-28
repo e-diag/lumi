@@ -1,0 +1,29 @@
+# Секреты — никогда в репозиторий
+.env
+*.key
+*.pem
+*.crt
+
+# Бинарные файлы
+/bin/
+api
+bot
+web
+migrator
+
+# Go
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres_data/

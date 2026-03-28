@@ -1,0 +1,27 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  base_url: "${BASE_URL}"
+
+database:
+  dsn: "${DATABASE_DSN}"
+
+jwt:
+  secret: "${JWT_SECRET}"
+
+bot:
+  token: "${TELEGRAM_BOT_TOKEN}"
+  admin_ids: [${TELEGRAM_ADMIN_IDS}]
+
+web:
+  host: "0.0.0.0"
+  port: 3000
+  admin_token: "${ADMIN_WEB_TOKEN}"
+
+remnawave:
+  base_url: "${REMNAWAVE_BASE_URL}"
+  api_key: "${REMNAWAVE_API_KEY}"
+
+yookassa:
+  shop_id: "${YOOKASSA_SHOP_ID}"
+  secret_key: "${YOOKASSA_SECRET_KEY}"
