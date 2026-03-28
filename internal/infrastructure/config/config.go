@@ -10,6 +10,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ConfigPath путь к файлу конфигурации: переменная CONFIG_PATH или config.yaml.
+func ConfigPath() string {
+	p := os.Getenv("CONFIG_PATH")
+	if p == "" {
+		return "config.yaml"
+	}
+	return p
+}
+
 // Config — корневая структура конфигурации приложения.
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
@@ -42,6 +51,17 @@ type JWTConfig struct {
 type BotConfig struct {
 	Token    string  `yaml:"token"`
 	AdminIDs []int64 `yaml:"admin_ids"`
+	// Username — имя бота без @ (для реферальных ссылок t.me/username).
+	Username string `yaml:"username"`
+	// AppURLIOS / AppURLAndroid — ссылки на страницы загрузки клиента (опционально).
+	AppURLIOS     string `yaml:"app_url_ios"`
+	AppURLAndroid string `yaml:"app_url_android"`
+	// PaymentDefaultDays — период оплаты по умолчанию в боте (например 30).
+	PaymentDefaultDays int `yaml:"payment_default_days"`
+	// MaxTrialsPerIP — максимум выданных триалов на один IP (0 = без лимита).
+	MaxTrialsPerIP int `yaml:"max_trials_per_ip"`
+	// ReferralBonusMaxPerMonth — потолок реферальных +3 дня у пригласившего в месяц (0 = без лимита).
+	ReferralBonusMaxPerMonth int `yaml:"referral_bonus_max_per_month"`
 }
 
 // WebConfig — настройки веб-панели администратора.
@@ -83,5 +103,75 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: parse yaml: %w", err)
 	}
 
+	applyDefaults(&cfg)
 	return &cfg, nil
+}
+
+func applyDefaults(c *Config) {
+	if c.Server.Host == "" {
+		c.Server.Host = "0.0.0.0"
+	}
+	if c.Server.Port == 0 {
+		c.Server.Port = 8080
+	}
+	if c.Web.Host == "" {
+		c.Web.Host = "0.0.0.0"
+	}
+	if c.Web.Port == 0 {
+		c.Web.Port = 3000
+	}
+	if c.Bot.PaymentDefaultDays <= 0 {
+		c.Bot.PaymentDefaultDays = 30
+	}
+}
+
+// ValidateAPI проверяет обязательные поля для cmd/api.
+func (c *Config) ValidateAPI() error {
+	if c.Database.DSN == "" {
+		return fmt.Errorf("config: DATABASE_DSN is required")
+	}
+	if c.JWT.Secret == "" {
+		return fmt.Errorf("config: JWT_SECRET is required")
+	}
+	if len(c.JWT.Secret) < 16 {
+		return fmt.Errorf("config: JWT_SECRET must be at least 16 characters")
+	}
+	if c.Bot.Token == "" {
+		return fmt.Errorf("config: TELEGRAM_BOT_TOKEN is required for API auth")
+	}
+	if c.Yookassa.ShopID == "" || c.Yookassa.SecretKey == "" {
+		return fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY are required for API")
+	}
+	return nil
+}
+
+// ValidateBot проверяет обязательные поля для cmd/bot.
+func (c *Config) ValidateBot() error {
+	if c.Database.DSN == "" {
+		return fmt.Errorf("config: DATABASE_DSN is required")
+	}
+	if c.Bot.Token == "" {
+		return fmt.Errorf("config: TELEGRAM_BOT_TOKEN is required")
+	}
+	if c.Yookassa.ShopID == "" || c.Yookassa.SecretKey == "" {
+		return fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY are required for bot payments")
+	}
+	if c.Server.BaseURL == "" {
+		return fmt.Errorf("config: BASE_URL is required for payment return URLs")
+	}
+	return nil
+}
+
+// ValidateWeb проверяет обязательные поля для cmd/web.
+func (c *Config) ValidateWeb() error {
+	if c.Database.DSN == "" {
+		return fmt.Errorf("config: DATABASE_DSN is required")
+	}
+	if c.Web.AdminToken == "" {
+		return fmt.Errorf("config: ADMIN_WEB_TOKEN is required for web panel")
+	}
+	if len(c.Web.AdminToken) < 12 {
+		return fmt.Errorf("config: ADMIN_WEB_TOKEN must be at least 12 characters")
+	}
+	return nil
 }

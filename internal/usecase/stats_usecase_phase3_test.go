@@ -56,6 +56,20 @@ func (r *statsPaymentRepo) SumSucceededBetween(context.Context, time.Time, time.
 func (r *statsPaymentRepo) CountSucceededBetween(context.Context, time.Time, time.Time) (int64, error) {
 	return 5, nil
 }
+func (r *statsPaymentRepo) ClaimSucceededByYookassaID(context.Context, string) (*domain.Payment, bool, error) {
+	return nil, false, nil
+}
+func (r *statsPaymentRepo) ClaimCanceledByYookassaID(context.Context, string) (*domain.Payment, bool, error) {
+	return nil, false, nil
+}
+func (r *statsPaymentRepo) ClaimSucceededByID(context.Context, uuid.UUID) (*domain.Payment, bool, error) {
+	return nil, false, nil
+}
+func (r *statsPaymentRepo) ClaimCanceledByID(context.Context, uuid.UUID) (*domain.Payment, bool, error) {
+	return nil, false, nil
+}
+func (r *statsPaymentRepo) ConsumePaymentActivation(context.Context, uuid.UUID) (bool, error) { return false, nil }
+func (r *statsPaymentRepo) ReleasePaymentActivation(context.Context, uuid.UUID) error            { return nil }
 
 type statsNodeRepo struct{}
 
@@ -63,9 +77,14 @@ func (r *statsNodeRepo) GetAll(context.Context) ([]*domain.Node, error) {
 	return []*domain.Node{{ID: uuid.New(), Name: "EU-NL", Region: domain.RegionEU, Active: true, LatencyMs: 40}}, nil
 }
 func (r *statsNodeRepo) GetByRegion(context.Context, domain.NodeRegion) ([]*domain.Node, error) { return nil, nil }
-func (r *statsNodeRepo) GetByID(context.Context, uuid.UUID) (*domain.Node, error)                { return nil, domain.ErrNodeNotFound }
-func (r *statsNodeRepo) Create(context.Context, *domain.Node) error                               { return nil }
-func (r *statsNodeRepo) Update(context.Context, *domain.Node) error                               { return nil }
+func (r *statsNodeRepo) GetByRegionWithTopology(context.Context, domain.NodeRegion) ([]*domain.Node, error) {
+	return nil, nil
+}
+func (r *statsNodeRepo) ListActiveNodeDomains(context.Context) ([]*domain.NodeDomain, error) { return nil, nil }
+func (r *statsNodeRepo) UpdateNodeDomain(context.Context, *domain.NodeDomain) error           { return nil }
+func (r *statsNodeRepo) GetByID(context.Context, uuid.UUID) (*domain.Node, error) { return nil, domain.ErrNodeNotFound }
+func (r *statsNodeRepo) Create(context.Context, *domain.Node) error               { return nil }
+func (r *statsNodeRepo) Update(context.Context, *domain.Node) error               { return nil }
 
 func TestStatsUseCase_GetDashboardStats(t *testing.T) {
 	uc := usecase.NewStatsUseCase(&statsUserRepo{}, &statsSubRepo{}, &statsPaymentRepo{}, &statsNodeRepo{})

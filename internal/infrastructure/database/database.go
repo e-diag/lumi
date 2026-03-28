@@ -30,20 +30,44 @@ func Connect(dsn string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("database: seed: %w", err)
 	}
 
+	if err := backfillNodeTopology(db); err != nil {
+		return nil, fmt.Errorf("database: topology backfill: %w", err)
+	}
+
 	slog.Info("database connected and migrated")
 	return db, nil
 }
 
 // migrate выполняет автомиграцию всех domain-моделей.
 func migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&domain.User{},
 		&domain.Subscription{},
 		&domain.Node{},
+		&domain.NodeInbound{},
+		&domain.NodeDomain{},
 		&domain.Payment{},
+		&domain.PaymentActivation{},
 		&domain.RoutingRule{},
 		&domain.MigrationRecord{},
-	)
+		&domain.BotTrialSignup{},
+		&domain.ReferralBonusLog{},
+		&domain.UserAccessProbe{},
+	); err != nil {
+		return err
+	}
+	return ensurePaymentIndexes(db)
+}
+
+// ensurePaymentIndexes добавляет составные индексы для воркеров и отчётов (идемпотентно).
+func ensurePaymentIndexes(db *gorm.DB) error {
+	if err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_payments_status_created_at
+		ON payments (status, created_at);
+	`).Error; err != nil {
+		return fmt.Errorf("database: index payments status_created_at: %w", err)
+	}
+	return nil
 }
 
 // seed создаёт начальные ноды, если их ещё нет в БД.

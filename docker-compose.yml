@@ -29,6 +29,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   bot:
     build: .
@@ -39,8 +45,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      api:
+        condition: service_started
     restart: unless-stopped
-    profiles: ["phase3"]  # включается только в Фазе 3
 
   web:
     build: .
@@ -48,13 +55,19 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
+      WEB_TEMPLATE_DIR: /app/internal/handler/web/templates
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    profiles: ["phase3"]  # включается только в Фазе 3
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -65,7 +78,7 @@ services:
       - "5050:80"
     depends_on:
       - postgres
-    profiles: ["dev"]  # только для разработки
+    profiles: ["dev"]
 
 volumes:
   postgres_data:

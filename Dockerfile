@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/migrator ./cmd/migrator
 # ── Runtime ────────────────────────────────────────────────
 FROM alpine:3.19
 
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata wget
 WORKDIR /app
 
 COPY --from=builder /bin/api      /app/api
@@ -24,6 +24,7 @@ COPY --from=builder /bin/bot      /app/bot
 COPY --from=builder /bin/web      /app/web
 COPY --from=builder /bin/migrator /app/migrator
 COPY config.yaml /app/config.yaml
+COPY internal/handler/web/templates /app/internal/handler/web/templates
 
 EXPOSE 8080 3000
 

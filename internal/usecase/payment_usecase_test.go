@@ -66,6 +66,46 @@ func (m *mockPaymentRepo) Update(ctx context.Context, p *domain.Payment) error {
 	args := m.Called(ctx, p)
 	return args.Error(0)
 }
+func (m *mockPaymentRepo) ClaimSucceededByYookassaID(ctx context.Context, yid string) (*domain.Payment, bool, error) {
+	args := m.Called(ctx, yid)
+	var p *domain.Payment
+	if v := args.Get(0); v != nil {
+		p = v.(*domain.Payment)
+	}
+	return p, args.Bool(1), args.Error(2)
+}
+func (m *mockPaymentRepo) ClaimCanceledByYookassaID(ctx context.Context, yid string) (*domain.Payment, bool, error) {
+	args := m.Called(ctx, yid)
+	var p *domain.Payment
+	if v := args.Get(0); v != nil {
+		p = v.(*domain.Payment)
+	}
+	return p, args.Bool(1), args.Error(2)
+}
+func (m *mockPaymentRepo) ClaimSucceededByID(ctx context.Context, id uuid.UUID) (*domain.Payment, bool, error) {
+	args := m.Called(ctx, id)
+	var p *domain.Payment
+	if v := args.Get(0); v != nil {
+		p = v.(*domain.Payment)
+	}
+	return p, args.Bool(1), args.Error(2)
+}
+func (m *mockPaymentRepo) ClaimCanceledByID(ctx context.Context, id uuid.UUID) (*domain.Payment, bool, error) {
+	args := m.Called(ctx, id)
+	var p *domain.Payment
+	if v := args.Get(0); v != nil {
+		p = v.(*domain.Payment)
+	}
+	return p, args.Bool(1), args.Error(2)
+}
+func (m *mockPaymentRepo) ConsumePaymentActivation(ctx context.Context, paymentID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, paymentID)
+	return args.Bool(0), args.Error(1)
+}
+func (m *mockPaymentRepo) ReleasePaymentActivation(ctx context.Context, paymentID uuid.UUID) error {
+	args := m.Called(ctx, paymentID)
+	return args.Error(0)
+}
 
 type mockSubUC struct{ mock.Mock }
 
@@ -110,6 +150,10 @@ func (m *mockSubUC) GetExpiringIn3Days(ctx context.Context) ([]*domain.Subscript
 }
 func (m *mockSubUC) DeactivateSubscription(ctx context.Context, userID uuid.UUID) error {
 	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+func (m *mockSubUC) AddBonusDays(ctx context.Context, userID uuid.UUID, days int) error {
+	args := m.Called(ctx, userID, days)
 	return args.Error(0)
 }
 
@@ -165,7 +209,7 @@ func TestPaymentUseCase_CreatePayment(t *testing.T) {
 				pRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Payment")).Return(nil).Once()
 			}
 
-			uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com")
+			uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
 			p, url, err := uc.CreatePayment(ctx, userID, tt.tier, tt.days)
 
 			if tt.wantErr {
@@ -199,12 +243,14 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_ActivatesSubscription(t *testing
 	subUC := &mockSubUC{}
 	gw := &mockGateway{}
 
-	pRepo.On("GetByYookassaID", mock.Anything, "prov-1").Return(p, nil).Once()
-	pRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.Payment")).Return(nil).Once()
+	pSucceeded := *p
+	pSucceeded.Status = domain.PaymentSucceeded
+	pRepo.On("ClaimSucceededByYookassaID", mock.Anything, "prov-1").Return(&pSucceeded, true, nil).Once()
+	pRepo.On("ConsumePaymentActivation", mock.Anything, p.ID).Return(true, nil).Once()
 	subUC.On("ActivateSubscription", mock.Anything, userID, domain.TierPremium, 30).
 		Return(&domain.Subscription{ID: uuid.New(), UserID: userID, Tier: domain.TierPremium}, nil).Once()
 
-	uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com")
+	uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
 
 	var ev usecase.WebhookEvent
 	ev.Object.ID = "prov-1"

@@ -167,6 +167,41 @@ func (uc *subscriptionUseCase) GetExpiringIn3Days(ctx context.Context) ([]*domai
 	return subs, nil
 }
 
+// AddBonusDays продлевает подписку на days от max(now, текущий expires_at). Если подписки нет — создаёт Basic на days.
+func (uc *subscriptionUseCase) AddBonusDays(ctx context.Context, userID uuid.UUID, days int) error {
+	if days <= 0 {
+		return fmt.Errorf("usecase: add bonus days: invalid days: %d", days)
+	}
+	sub, err := uc.subRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrSubscriptionNotFound) {
+			if _, aerr := uc.ActivateSubscription(ctx, userID, domain.TierBasic, days); aerr != nil {
+				return fmt.Errorf("usecase: add bonus days activate: %w", aerr)
+			}
+			return nil
+		}
+		return fmt.Errorf("usecase: add bonus days: %w", err)
+	}
+	base := time.Now()
+	if sub.ExpiresAt.After(base) {
+		base = sub.ExpiresAt
+	}
+	newExp := base.AddDate(0, 0, days)
+	updated := &domain.Subscription{
+		ID:        sub.ID,
+		UserID:    userID,
+		Tier:      sub.Tier,
+		ExpiresAt: newExp,
+	}
+	if err := uc.subRepo.Update(ctx, updated); err != nil {
+		return fmt.Errorf("usecase: add bonus days update: %w", err)
+	}
+	if err := uc.applyTierSideEffects(ctx, userID, updated.Tier, &newExp); err != nil {
+		return fmt.Errorf("usecase: add bonus days side effects: %w", err)
+	}
+	return nil
+}
+
 func (uc *subscriptionUseCase) applyTierSideEffects(ctx context.Context, userID uuid.UUID, tier domain.SubscriptionTier, expiresAt *time.Time) error {
 	user, err := uc.userRepo.GetByID(ctx, userID)
 	if err != nil {

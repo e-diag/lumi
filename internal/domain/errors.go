@@ -13,4 +13,7 @@ var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrSubscriptionExpired  = errors.New("subscription expired")
 	ErrAlreadyExists        = errors.New("already exists")
+	ErrTrialAbuseIP         = errors.New("trial quota exceeded for this network")
+	ErrReferralAbuseSameIP  = errors.New("referral from same network as inviter")
+	ErrReferralMonthlyCap   = errors.New("referral bonus monthly limit reached")
 )

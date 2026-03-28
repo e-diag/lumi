@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/freeway-vpn/backend/internal/domain"
@@ -123,4 +124,97 @@ func (r *paymentRepository) Update(ctx context.Context, payment *domain.Payment)
 		return fmt.Errorf("repository: payment update: %w", err)
 	}
 	return nil
+}
+
+func (r *paymentRepository) ClaimSucceededByYookassaID(ctx context.Context, yookassaID string) (*domain.Payment, bool, error) {
+	return r.claimStatusByYookassaID(ctx, yookassaID, domain.PaymentSucceeded)
+}
+
+func (r *paymentRepository) ClaimCanceledByYookassaID(ctx context.Context, yookassaID string) (*domain.Payment, bool, error) {
+	return r.claimStatusByYookassaID(ctx, yookassaID, domain.PaymentCanceled)
+}
+
+func (r *paymentRepository) claimStatusByYookassaID(ctx context.Context, yookassaID string, newStatus domain.PaymentStatus) (*domain.Payment, bool, error) {
+	res := r.db.WithContext(ctx).Model(&domain.Payment{}).
+		Where("yookassa_id = ? AND status = ?", yookassaID, domain.PaymentPending).
+		Update("status", newStatus)
+	if res.Error != nil {
+		return nil, false, fmt.Errorf("repository: payment claim by yookassa id: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		p, err := r.GetByYookassaID(ctx, yookassaID)
+		if err != nil {
+			return nil, false, err
+		}
+		return p, true, nil
+	}
+	p, err := r.GetByYookassaID(ctx, yookassaID)
+	if err != nil {
+		if errors.Is(err, domain.ErrPaymentNotFound) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return p, false, nil
+}
+
+func (r *paymentRepository) ClaimSucceededByID(ctx context.Context, id uuid.UUID) (*domain.Payment, bool, error) {
+	return r.claimStatusByID(ctx, id, domain.PaymentSucceeded)
+}
+
+func (r *paymentRepository) ClaimCanceledByID(ctx context.Context, id uuid.UUID) (*domain.Payment, bool, error) {
+	return r.claimStatusByID(ctx, id, domain.PaymentCanceled)
+}
+
+func (r *paymentRepository) claimStatusByID(ctx context.Context, id uuid.UUID, newStatus domain.PaymentStatus) (*domain.Payment, bool, error) {
+	res := r.db.WithContext(ctx).Model(&domain.Payment{}).
+		Where("id = ? AND status = ?", id, domain.PaymentPending).
+		Update("status", newStatus)
+	if res.Error != nil {
+		return nil, false, fmt.Errorf("repository: payment claim by id: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		p, err := r.GetByID(ctx, id)
+		if err != nil {
+			return nil, false, err
+		}
+		return p, true, nil
+	}
+	p, err := r.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrPaymentNotFound) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return p, false, nil
+}
+
+func (r *paymentRepository) ConsumePaymentActivation(ctx context.Context, paymentID uuid.UUID) (bool, error) {
+	row := &domain.PaymentActivation{PaymentID: paymentID}
+	err := r.db.WithContext(ctx).Create(row).Error
+	if err != nil {
+		if isUniqueViolation(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("repository: consume payment activation: %w", err)
+	}
+	return true, nil
+}
+
+func (r *paymentRepository) ReleasePaymentActivation(ctx context.Context, paymentID uuid.UUID) error {
+	res := r.db.WithContext(ctx).Where("payment_id = ?", paymentID).Delete(&domain.PaymentActivation{})
+	if res.Error != nil {
+		return fmt.Errorf("repository: release payment activation: %w", res.Error)
+	}
+	return nil
+}
+
+// isUniqueViolation — грубая проверка конфликта primary key (PostgreSQL).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "23505") || strings.Contains(s, "duplicate key")
 }

@@ -42,6 +42,9 @@ func (w *PaymentWorker) run(ctx context.Context) {
 	}
 
 	now := time.Now()
+	if len(payments) > 0 {
+		slog.Info("payment worker: pending batch", "count", len(payments))
+	}
 	for _, p := range payments {
 		if p == nil {
 			continue

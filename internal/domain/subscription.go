@@ -26,17 +26,17 @@ type TierLimits struct {
 var TierLimitsMap = map[SubscriptionTier]TierLimits{
 	TierFree: {
 		SpeedMbps: 1,
-		Devices:   1,
+		Devices:   3,
 		Regions:   []NodeRegion{RegionEU},
 	},
 	TierBasic: {
 		SpeedMbps: 10,
-		Devices:   2,
+		Devices:   3,
 		Regions:   []NodeRegion{RegionEU, RegionUSA},
 	},
 	TierPremium: {
 		SpeedMbps: 0,
-		Devices:   5,
+		Devices:   3,
 		Regions:   []NodeRegion{RegionEU, RegionUSA, RegionCDN},
 	},
 }

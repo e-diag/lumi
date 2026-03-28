@@ -85,6 +85,19 @@ func (r *fakeNodeRepo) GetByRegion(_ context.Context, region domain.NodeRegion) 
 	}
 	return result, nil
 }
+
+func (r *fakeNodeRepo) GetByRegionWithTopology(ctx context.Context, region domain.NodeRegion) ([]*domain.Node, error) {
+	return r.GetByRegion(ctx, region)
+}
+
+func (r *fakeNodeRepo) ListActiveNodeDomains(_ context.Context) ([]*domain.NodeDomain, error) {
+	return nil, nil
+}
+
+func (r *fakeNodeRepo) UpdateNodeDomain(_ context.Context, _ *domain.NodeDomain) error {
+	return nil
+}
+
 func (r *fakeNodeRepo) GetByID(_ context.Context, id uuid.UUID) (*domain.Node, error) {
 	for _, n := range r.nodes {
 		if n.ID == id {

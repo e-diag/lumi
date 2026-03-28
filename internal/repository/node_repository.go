@@ -35,6 +35,34 @@ func (r *nodeRepository) GetByRegion(ctx context.Context, region domain.NodeRegi
 	return nodes, nil
 }
 
+func (r *nodeRepository) GetByRegionWithTopology(ctx context.Context, region domain.NodeRegion) ([]*domain.Node, error) {
+	var nodes []*domain.Node
+	q := r.db.WithContext(ctx).
+		Preload("Inbounds", "active = ?", true).
+		Preload("Domains", "is_active = ?", true).
+		Where("region = ? AND active = ?", region, true).
+		Order("health_score DESC, latency_ms ASC, name ASC")
+	if err := q.Find(&nodes).Error; err != nil {
+		return nil, fmt.Errorf("repository: node get by region topology: %w", err)
+	}
+	return nodes, nil
+}
+
+func (r *nodeRepository) ListActiveNodeDomains(ctx context.Context) ([]*domain.NodeDomain, error) {
+	var rows []*domain.NodeDomain
+	if err := r.db.WithContext(ctx).Where("is_active = ?", true).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("repository: list node domains: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *nodeRepository) UpdateNodeDomain(ctx context.Context, row *domain.NodeDomain) error {
+	if err := r.db.WithContext(ctx).Save(row).Error; err != nil {
+		return fmt.Errorf("repository: update node domain: %w", err)
+	}
+	return nil
+}
+
 func (r *nodeRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Node, error) {
 	var node domain.Node
 	err := r.db.WithContext(ctx).First(&node, "id = ?", id).Error

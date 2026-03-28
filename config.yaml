@@ -12,6 +12,12 @@ jwt:
 bot:
   token: "${TELEGRAM_BOT_TOKEN}"
   admin_ids: [${TELEGRAM_ADMIN_IDS}]
+  username: "${TELEGRAM_BOT_USERNAME}"
+  app_url_ios: "${TELEGRAM_APP_URL_IOS}"
+  app_url_android: "${TELEGRAM_APP_URL_ANDROID}"
+  payment_default_days: 30
+  max_trials_per_ip: 3
+  referral_bonus_max_per_month: 30
 
 web:
   host: "0.0.0.0"

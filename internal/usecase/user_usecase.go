@@ -54,6 +54,15 @@ func (uc *userUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domain.User,
 	return user, nil
 }
 
+// GetBySubToken возвращает пользователя по токену URL подписки.
+func (uc *userUseCase) GetBySubToken(ctx context.Context, token string) (*domain.User, error) {
+	user, err := uc.userRepo.GetBySubToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("usecase: get user by sub token: %w", err)
+	}
+	return user, nil
+}
+
 func (uc *userUseCase) List(ctx context.Context, query string, page, pageSize int) ([]*domain.User, int64, error) {
 	if page < 1 {
 		page = 1

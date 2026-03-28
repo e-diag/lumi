@@ -184,3 +184,50 @@ func TestSubscriptionUseCase_ExpireOld_DowngradesToFree(t *testing.T) {
 	require.NoError(t, uc.ExpireOld(ctx))
 }
 
+func TestSubscriptionUseCase_AddBonusDays_NoSubscription_CreatesBasic(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	subRepo := &mockSubRepo{}
+	userRepo := &mockUserRepo{}
+	rem := &mockRemnawave{}
+
+	subRepo.On("GetByUserID", mock.Anything, userID).Return(nil, domain.ErrSubscriptionNotFound).Twice()
+	subRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Subscription")).Return(nil).Once()
+	userRepo.On("GetByID", mock.Anything, userID).Return(&domain.User{ID: userID, DeviceLimit: 1}, nil).Once()
+	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
+	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	require.NoError(t, uc.AddBonusDays(ctx, userID, 3))
+}
+
+func TestSubscriptionUseCase_AddBonusDays_ExtendsFromMaxNowOrExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	userID := uuid.New()
+	future := time.Now().Add(48 * time.Hour)
+	sub := &domain.Subscription{
+		ID:        uuid.New(),
+		UserID:    userID,
+		Tier:      domain.TierPremium,
+		ExpiresAt: future,
+	}
+
+	subRepo := &mockSubRepo{}
+	userRepo := &mockUserRepo{}
+	rem := &mockRemnawave{}
+
+	subRepo.On("GetByUserID", mock.Anything, userID).Return(sub, nil).Once()
+	subRepo.On("Update", mock.Anything, mock.MatchedBy(func(s *domain.Subscription) bool {
+		return s.UserID == userID && s.ExpiresAt.After(future)
+	})).Return(nil).Once()
+	userRepo.On("GetByID", mock.Anything, userID).Return(&domain.User{ID: userID}, nil).Once()
+	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
+	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	require.NoError(t, uc.AddBonusDays(ctx, userID, 5))
+}
+

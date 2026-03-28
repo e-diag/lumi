@@ -2,8 +2,8 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strconv"
 	"time"
@@ -18,15 +18,27 @@ type paymentUseCase struct {
 	subUC       SubscriptionUseCase
 	gateway     PaymentGateway
 	baseURL     string
+	notify      PaymentSuccessNotifier
 }
 
 // NewPaymentUseCase создаёт реализацию PaymentUseCase.
-func NewPaymentUseCase(paymentRepo repository.PaymentRepository, subUC SubscriptionUseCase, gateway PaymentGateway, baseURL string) PaymentUseCase {
+// notify может быть nil — тогда сообщения в Telegram после оплаты не отправляются.
+func NewPaymentUseCase(paymentRepo repository.PaymentRepository, subUC SubscriptionUseCase, gateway PaymentGateway, baseURL string, notify PaymentSuccessNotifier) PaymentUseCase {
 	return &paymentUseCase{
 		paymentRepo: paymentRepo,
 		subUC:       subUC,
 		gateway:     gateway,
 		baseURL:     baseURL,
+		notify:      notify,
+	}
+}
+
+func (uc *paymentUseCase) notifyPaymentSuccess(ctx context.Context, userID uuid.UUID) {
+	if uc.notify == nil {
+		return
+	}
+	if err := uc.notify.NotifySubscriptionPaid(ctx, userID); err != nil {
+		slog.Warn("payment: telegram notify failed", "user_id", userID, "error", err)
 	}
 }
 
@@ -79,44 +91,86 @@ func (uc *paymentUseCase) CreatePayment(ctx context.Context, userID uuid.UUID, t
 }
 
 func (uc *paymentUseCase) HandleWebhook(ctx context.Context, event WebhookEvent) error {
-	// ЮKassa шлёт: event=payment.succeeded/payment.canceled, object.status=succeeded/canceled
 	if event.Object.ID == "" {
 		return fmt.Errorf("usecase: handle webhook: empty provider id")
 	}
 
-	p, err := uc.paymentRepo.GetByYookassaID(ctx, event.Object.ID)
-	if err != nil {
-		if errors.Is(err, domain.ErrPaymentNotFound) {
-			// Не нашли платеж — не ретраим бесконечно. Логика idempotent на уровне обработчика.
-			return nil
-		}
-		return fmt.Errorf("usecase: handle webhook: get payment: %w", err)
-	}
-
-	switch p.Status {
-	case domain.PaymentSucceeded, domain.PaymentCanceled:
-		return nil
-	}
-
 	switch event.Object.Status {
 	case "succeeded":
-		p.Status = domain.PaymentSucceeded
-		if err := uc.paymentRepo.Update(ctx, p); err != nil {
-			return fmt.Errorf("usecase: handle webhook: update payment: %w", err)
+		p, err := uc.applySucceededByYookassaID(ctx, event.Object.ID)
+		if err != nil {
+			return err
 		}
-		if _, err := uc.subUC.ActivateSubscription(ctx, p.UserID, p.Tier, p.DurationDays); err != nil {
-			return fmt.Errorf("usecase: handle webhook: activate subscription: %w", err)
+		if p == nil {
+			return nil
+		}
+		if err := uc.finalizeSucceededPayment(ctx, p); err != nil {
+			return fmt.Errorf("usecase: handle webhook: finalize: %w", err)
 		}
 		return nil
 	case "canceled":
-		p.Status = domain.PaymentCanceled
-		if err := uc.paymentRepo.Update(ctx, p); err != nil {
-			return fmt.Errorf("usecase: handle webhook: update payment: %w", err)
+		if _, _, err := uc.paymentRepo.ClaimCanceledByYookassaID(ctx, event.Object.ID); err != nil {
+			return fmt.Errorf("usecase: handle webhook: claim canceled: %w", err)
 		}
 		return nil
 	default:
 		return nil
 	}
+}
+
+// applySucceededByYookassaID переводит платёж в succeeded (идемпотентно) и возвращает актуальную строку.
+func (uc *paymentUseCase) applySucceededByYookassaID(ctx context.Context, yookassaID string) (*domain.Payment, error) {
+	p, claimed, err := uc.paymentRepo.ClaimSucceededByYookassaID(ctx, yookassaID)
+	if err != nil {
+		return nil, fmt.Errorf("usecase: claim succeeded: %w", err)
+	}
+	if p == nil {
+		slog.Warn("payment webhook: unknown yookassa id", "yookassa_id", yookassaID)
+		return nil, nil
+	}
+	if !claimed && p.Status != domain.PaymentSucceeded {
+		return nil, nil
+	}
+	return p, nil
+}
+
+// applySucceededByID — то же для внутреннего UUID (воркер опроса ЮKassa).
+func (uc *paymentUseCase) applySucceededByID(ctx context.Context, paymentID uuid.UUID) (*domain.Payment, error) {
+	p, claimed, err := uc.paymentRepo.ClaimSucceededByID(ctx, paymentID)
+	if err != nil {
+		return nil, fmt.Errorf("usecase: claim succeeded by id: %w", err)
+	}
+	if p == nil {
+		return nil, nil
+	}
+	if !claimed && p.Status != domain.PaymentSucceeded {
+		return nil, nil
+	}
+	return p, nil
+}
+
+// finalizeSucceededPayment однократно активирует подписку по успешному платежу (ledger + release при ошибке).
+func (uc *paymentUseCase) finalizeSucceededPayment(ctx context.Context, p *domain.Payment) error {
+	if p.Status != domain.PaymentSucceeded {
+		return nil
+	}
+	consumed, err := uc.paymentRepo.ConsumePaymentActivation(ctx, p.ID)
+	if err != nil {
+		return fmt.Errorf("usecase: consume payment activation: %w", err)
+	}
+	if !consumed {
+		return nil
+	}
+	_, subErr := uc.subUC.ActivateSubscription(ctx, p.UserID, p.Tier, p.DurationDays)
+	if subErr != nil {
+		if relErr := uc.paymentRepo.ReleasePaymentActivation(ctx, p.ID); relErr != nil {
+			slog.Error("payment: release activation after failure", "payment_id", p.ID, "error", relErr)
+		}
+		return fmt.Errorf("usecase: activate subscription: %w", subErr)
+	}
+	slog.Info("payment: subscription activated", "payment_id", p.ID, "user_id", p.UserID, "tier", p.Tier, "days", p.DurationDays)
+	uc.notifyPaymentSuccess(ctx, p.UserID)
+	return nil
 }
 
 func (uc *paymentUseCase) GetPendingPayments(ctx context.Context) ([]*domain.Payment, error) {
@@ -144,17 +198,19 @@ func (uc *paymentUseCase) CheckAndUpdatePayment(ctx context.Context, paymentID u
 
 	switch providerPayment.Status {
 	case "succeeded":
-		p.Status = domain.PaymentSucceeded
-		if err := uc.paymentRepo.Update(ctx, p); err != nil {
-			return fmt.Errorf("usecase: check payment: update: %w", err)
+		p2, err := uc.applySucceededByID(ctx, paymentID)
+		if err != nil {
+			return fmt.Errorf("usecase: check payment: apply succeeded: %w", err)
 		}
-		if _, err := uc.subUC.ActivateSubscription(ctx, p.UserID, p.Tier, p.DurationDays); err != nil {
-			return fmt.Errorf("usecase: check payment: activate subscription: %w", err)
+		if p2 == nil {
+			return nil
+		}
+		if err := uc.finalizeSucceededPayment(ctx, p2); err != nil {
+			return fmt.Errorf("usecase: check payment: finalize: %w", err)
 		}
 	case "canceled":
-		p.Status = domain.PaymentCanceled
-		if err := uc.paymentRepo.Update(ctx, p); err != nil {
-			return fmt.Errorf("usecase: check payment: update: %w", err)
+		if _, _, err := uc.paymentRepo.ClaimCanceledByID(ctx, paymentID); err != nil {
+			return fmt.Errorf("usecase: check payment: claim canceled: %w", err)
 		}
 	default:
 		// pending — ничего

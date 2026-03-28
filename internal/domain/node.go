@@ -43,4 +43,13 @@ type Node struct {
 	Active    bool          `gorm:"default:true"`
 	LatencyMs int           `gorm:"not null;default:0"`
 	FailCount int           `gorm:"not null;default:0"` // подряд неудачных проверок
+	// HealthScore — агрегированная оценка 0–100 (выше лучше); влияет на порядок в подписке.
+	HealthScore float64 `gorm:"not null;default:100"`
+	// ProbeOK / ProbeTotal — накопительная статистика успешных проб (TLS handshake).
+	ProbeOK    int64 `gorm:"not null;default:0"`
+	ProbeTotal int64 `gorm:"not null;default:0"`
+
+	// Inbounds / Domains — топология для генерации подписки (опционально, иначе legacy по полям Node).
+	Inbounds []NodeInbound `gorm:"foreignKey:NodeID;constraint:OnDelete:CASCADE"`
+	Domains  []NodeDomain  `gorm:"foreignKey:NodeID;constraint:OnDelete:CASCADE"`
 }

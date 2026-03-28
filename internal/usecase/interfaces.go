@@ -14,7 +14,38 @@ type UserUseCase interface {
 	Register(ctx context.Context, telegramID int64, username string) (*domain.User, error)
 	GetByTelegramID(ctx context.Context, telegramID int64) (*domain.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	// GetBySubToken возвращает пользователя по токену подписки (GET /sub/{token}).
+	GetBySubToken(ctx context.Context, token string) (*domain.User, error)
 	List(ctx context.Context, query string, page, pageSize int) ([]*domain.User, int64, error)
+}
+
+// TelegramStartOutcome — результат обработки /start в пользовательском боте.
+type TelegramStartOutcome struct {
+	IsNewUser        bool
+	TrialGranted     bool
+	TrialSkippedByIP bool // триал не выдан из‑за лимита по сети (аккаунт создан)
+}
+
+// TelegramClientMeta — опциональные данные клиента (IP/UA), если доступны (например за reverse-proxy).
+type TelegramClientMeta struct {
+	IP        string
+	UserAgent string
+}
+
+// TelegramBotUserUseCase — онбординг пользователя из Telegram (/start, рефералы, триал).
+type TelegramBotUserUseCase interface {
+	// OnStart создаёт пользователя при необходимости, выдаёт приветственный триал, начисляет бонус пригласившему.
+	OnStart(ctx context.Context, telegramID int64, username string, referrerUserID *uuid.UUID, client TelegramClientMeta) (*domain.User, *TelegramStartOutcome, error)
+}
+
+// AccessProbeUseCase — мягкий учёт обращений к URL подписки.
+type AccessProbeUseCase interface {
+	RecordSubscriptionFetch(ctx context.Context, userID uuid.UUID, ip, userAgent string) error
+}
+
+// PaymentSuccessNotifier — уведомление пользователя в Telegram после оплаты.
+type PaymentSuccessNotifier interface {
+	NotifySubscriptionPaid(ctx context.Context, userID uuid.UUID) error
 }
 
 // SubscriptionUseCase — бизнес-логика управления подписками.
@@ -32,6 +63,9 @@ type SubscriptionUseCase interface {
 
 	// GetExpiringIn3Days возвращает подписки, истекающие примерно через 3 дня.
 	GetExpiringIn3Days(ctx context.Context) ([]*domain.Subscription, error)
+
+	// AddBonusDays добавляет дни к текущей подписке (от max(now, expires_at)); если подписки нет — создаёт Basic на days.
+	AddBonusDays(ctx context.Context, userID uuid.UUID, days int) error
 }
 
 // NodeUseCase — бизнес-логика работы с нодами.
