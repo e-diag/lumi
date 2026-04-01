@@ -63,7 +63,9 @@
 | `REMNAWAVE_BASE_URL` | Базовый URL API панели |
 | `REMNAWAVE_API_KEY` | API-ключ |
 
-Для **cmd/web** Remnawave не подключается (только списки/статистика в БД); для API и бота клиент используется в `SubscriptionUseCase`.
+Если **`REMNAWAVE_BASE_URL` пустой**, API и бот **не** вызывают Remnawave: подписка и `device_limit` обновляются только в PostgreSQL (удобно для альфы без панели). В логах будет предупреждение `bootstrap`.
+
+Для **cmd/web** Remnawave не подключается (только списки/статистика в БД); для API и бота клиент используется в `SubscriptionUseCase`, если URL задан.
 
 ### ЮKassa
 
@@ -139,7 +141,10 @@ docker compose up --build
 
 ```bash
 curl -s http://localhost:8080/health
+curl -s http://localhost:8080/health/ready
 ```
+
+`/health` — процесс жив. `/health/ready` — дополнительно **ping PostgreSQL** (для orchestrator/k8s).
 
 Проверка веб-панели:
 
@@ -166,6 +171,7 @@ go test ./internal/... ./cmd/...
 ### API (примеры)
 
 - `GET /health` — без авторизации.
+- `GET /health/ready` — готовность + БД.
 - `GET /sub/{sub_token}` — выдача подписки (rate limit по IP).
 - `POST /api/v1/auth/tg` — тело `{"init_data":"..."}` (Telegram WebApp), rate limit по IP.
 - `GET /api/v1/users/me` — заголовок `Authorization: Bearer <jwt>`.

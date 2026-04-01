@@ -258,3 +258,44 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_ActivatesSubscription(t *testing
 	require.NoError(t, uc.HandleWebhook(ctx, ev))
 }
 
+func TestPaymentUseCase_HandleWebhook_Succeeded_SecondDelivery_DoesNotActivateTwice(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	userID := uuid.New()
+	p := &domain.Payment{
+		ID:           uuid.New(),
+		UserID:       userID,
+		YookassaID:   "prov-dup",
+		Tier:         domain.TierBasic,
+		DurationDays: 30,
+		Status:       domain.PaymentPending,
+	}
+
+	pRepo := &mockPaymentRepo{}
+	subUC := &mockSubUC{}
+	gw := &mockGateway{}
+
+	pSucceeded := *p
+	pSucceeded.Status = domain.PaymentSucceeded
+	// Первый webhook: claim прошёл, активация выполнена.
+	pRepo.On("ClaimSucceededByYookassaID", mock.Anything, "prov-dup").Return(&pSucceeded, true, nil).Once()
+	pRepo.On("ConsumePaymentActivation", mock.Anything, p.ID).Return(true, nil).Once()
+	subUC.On("ActivateSubscription", mock.Anything, userID, domain.TierBasic, 30).
+		Return(&domain.Subscription{ID: uuid.New(), UserID: userID, Tier: domain.TierBasic}, nil).Once()
+
+	uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
+
+	var ev usecase.WebhookEvent
+	ev.Object.ID = "prov-dup"
+	ev.Object.Status = "succeeded"
+	require.NoError(t, uc.HandleWebhook(ctx, ev))
+
+	// Повторная доставка: платёж уже succeeded — ConsumePaymentActivation вернёт false, подписка не дублируется.
+	pRepo.On("ClaimSucceededByYookassaID", mock.Anything, "prov-dup").Return(&pSucceeded, false, nil).Once()
+	pRepo.On("ConsumePaymentActivation", mock.Anything, p.ID).Return(false, nil).Once()
+	require.NoError(t, uc.HandleWebhook(ctx, ev))
+
+	subUC.AssertNumberOfCalls(t, "ActivateSubscription", 1)
+}
+

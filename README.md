@@ -1,159 +1,35 @@
-# FreeWay VPN — бэкенд
+# FreeWay VPN Backend
 
-Бэкенд VPN-сервиса **FreeWay** для пользователей в России: один клик — подключение без ручной настройки. Репозиторий отделён от старого MTProto-бота; здесь — REST API, платежи, панели менеджера, маршрутизация и интеграция с Xray через Remnawave.
+Бэкенд для VPN/proxy SaaS: API, Telegram-бот, веб-панель менеджера, подписки и платежи.
 
----
+## Что в репозитории
 
-## Цель проекта
+- `cmd/api` — REST API и фоновые воркеры.
+- `cmd/bot` — Telegram-бот (пользовательский и менеджерский флоу).
+- `cmd/web` — веб-панель менеджера.
+- `internal/*` — домен, usecase, репозитории, хендлеры, инфраструктурные адаптеры.
+- `migrations` — миграции БД.
 
-- **Для пользователя:** стабильный доступ к заблокированным и зарубежным сервисам (в т.ч. AI), Telegram и веб без сложных конфигов.
-- **Для продукта:** единый бэкенд с подписками, оплатой, выдачей конфигов под клиент (Hiddify Next / совместимые клиенты) и умной маршрутизацией (через VPN только нужное, остальное — напрямую).
-- **Для операций:** панели для менеджера (Telegram-бот и веб на Go templates + htmx), мониторинг нод и платежей.
+Технологии: Go, PostgreSQL, GORM, chi, YooKassa, Remnawave/Xray.
 
-Архитектурный принцип: **Clean Architecture** — `handler → usecase → repository`, зависимости через конструкторы, секреты только из окружения.
+## Быстрый старт
 
----
-
-## Проблема и решение
-
-| Проблема | Как закрывает FreeWay |
-|----------|------------------------|
-| Блокировки сайтов и сервисов | EU/USA ноды, VLESS + Reality |
-| Нет доступа к AI из РФ | Отдельный список доменов → USA-нода |
-| «Белые списки» операторов | CDN fallback (Яндекс Cloud), gRPC для CDN (без TLS-over-TLS) |
-| Лишний трафик через VPN | Списки `proxy_eu` / `proxy_usa` / `direct` с API для клиента |
-| Риск для российских сайтов через CDN | `direct_strict_mode`: direct-домены **никогда** не идут через CDN |
-
-Подробности по контракту маршрутизации для клиента: [docs/mobile-routing-contract.md](docs/mobile-routing-contract.md).  
-Настройка CDN на стороне инфраструктуры: [docs/cdn-setup.md](docs/cdn-setup.md), [docs/cdn-node-setup.md](docs/cdn-node-setup.md).
-
----
-
-## Стек
-
-| Компонент | Технология |
-|-----------|------------|
-| Язык | Go 1.24 |
-| HTTP | chi v5 |
-| БД | PostgreSQL + GORM |
-| Авторизация API | JWT (golang-jwt/jwt v5), Telegram WebApp `initData` |
-| Платежи | ЮKassa |
-| VPN-ядро | Xray-core, управление через **Remnawave** API |
-| Панели менеджера | go-telegram/bot, веб: **Go templates + htmx** (без React/Vue) |
-| Клиент (план) | Hiddify Next (форк, Flutter), RuStore |
-
----
-
-## Структура репозитория
-
-```
-cmd/
-  api/        REST API (по умолчанию :8080)
-  bot/        Telegram-бот менеджера
-  web/        Веб-панель менеджера (:3000)
-  migrator/   Миграция пользователей со старого MTProto-бота (фаза 6)
-
-internal/
-  domain/           сущности (User, Subscription, Node, Payment, RoutingRule, …)
-  usecase/          бизнес-логика + интерфейсы
-  repository/       слой БД (GORM)
-  handler/api|bot|web
-  worker/           фоновые задачи (платежи, подписки, ноды, routing)
-  infrastructure/   config, database, yookassa, remnawave, xray (генерация URI)
-
-config.yaml       конфиг с плейсхолдерами ${ENV}
-.env.example      пример переменных окружения
-```
-
----
-
-## Тарифы (кратко)
-
-| Тариф | Ориентир | Устройства | Ноды |
-|-------|----------|------------|------|
-| **Free** | бесплатно | 1 | EU |
-| **Basic** | 149 ₽/мес | 2 | EU + USA |
-| **Premium** | 299 ₽/мес | 5 | EU + USA + CDN fallback |
-
-Лимиты скорости и регионов задаются в `internal/domain/subscription.go` (`TierLimitsMap`).
-
----
-
-## Ноды
-
-- **EU-NL** — основная, VLESS + XTLS-Reality (порт 443).
-- **USA** — для AI и зарубежных сервисов из списка `proxy_usa`.
-- **CDN (Яндекс)** — резерв при белых списках; в подписке **всегда последняя** строка; транспорт **gRPC** (`security=none` на уровне URI — TLS на стороне CDN).
-
----
-
-## Ключевые HTTP endpoints
-
-| Метод и путь | Назначение |
-|--------------|------------|
-| `GET /sub/{token}` | **Главный** вывод: base64(VLESS-строки через `\n`) для импорта в клиент |
-| `GET /api/v1/routing/lists` | Публично: JSON со списками `proxy_eu`, `proxy_usa`, `direct`, флаги `direct_strict_mode` и `meta` |
-| `POST /api/v1/auth/tg` | Авторизация по Telegram WebApp |
-| `POST /api/v1/payments`, webhook ЮKassa | Оплата и активация подписки |
-| `GET /health` | Проверка живости API |
-
-Админка: `/admin/*` (веб), бот — команды и inline-меню для менеджеров (список `admin_ids` в конфиге).
-
----
-
-## На каком этапе проект сейчас
-
-Реализованы **фазы 1–4**. Следующий крупный этап — **фаза 5** (мобильный клиент), затем **фаза 6** (миграция со старого MTProto-бота).
-
-| Фаза | Содержание | Статус |
-|------|------------|--------|
-| **1** | Domain, repository, usecase, `GET /sub/{token}`, docker-compose | Завершена |
-| **2** | ЮKassa, webhook, JWT + Telegram auth, workers (платежи, подписки, health нод) | Завершена |
-| **3** | Telegram-бот и веб-панель менеджера (htmx) | Завершена |
-| **4** | Списки antifilter, routing API, воркер обновления, CDN-документация, gRPC CDN, strict direct | Завершена |
-| **5** | Приложение (Hiddify fork), RuStore | **Текущий фокус** |
-| **6** | `cmd/migrator`, перенос пользователей со старого бота | После готового продукта |
-
-Итого: **продуктовый бэкенд и инструменты менеджера готовы к связке с клиентом фазы 5**; миграция старых пользователей сознательно отложена.
-
----
-
-## Быстрый старт (разработка)
+1. Скопируйте `.env.example` в `.env` и заполните значения.
+2. Поднимите сервисы:
 
 ```bash
-docker-compose up -d
-go run ./cmd/api
-go run ./cmd/bot
-go run ./cmd/web
-go test ./...
-go vet ./...
-go build ./...
+docker compose up --build
 ```
 
-Скопируйте `.env.example` в `.env`, заполните переменные; путь к конфигу можно задать `CONFIG_PATH` (по умолчанию `config.yaml`).
+3. Проверьте API:
 
----
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
+```
 
-## Безопасность и секреты
+## Полная инструкция
 
-- Секреты **не** хранятся в коде — только через **переменные окружения** и `config.yaml` с `${VAR}`.
-- Веб-админка: токен из конфига, сессия и CSRF для state-changing запросов.
-- Вебхук ЮKassa: проверка IP из официальных диапазонов.
+Подробный запуск, переменные окружения, локальный режим, Docker и troubleshooting:
 
----
-
-## Документация в репозитории
-
-- [CLAUDE.md](CLAUDE.md) — контекст для ИИ-ассистентов и соглашения по фазам.
-- [docs/mobile-routing-contract.md](docs/mobile-routing-contract.md) — приоритеты direct / proxy / CDN для клиента.
-- [docs/cdn-setup.md](docs/cdn-setup.md), [docs/cdn-node-setup.md](docs/cdn-node-setup.md) — CDN и inbound.
-
----
-
-## Лицензия и вклад
-
-Уточните лицензию в корне репозитория при публикации. Для разработки следуйте `CLAUDE.md` / `.cursorrules`: `slog`, обёртка ошибок `fmt.Errorf("...: %w", err)`, table-driven тесты для usecase.
-
----
-
-**FreeWay** — VPN, ориентированный на простоту для пользователя и предсказуемую архитектуру для команды.
+- [`docs/SETUP.md`](docs/SETUP.md)

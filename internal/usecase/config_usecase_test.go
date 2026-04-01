@@ -230,6 +230,19 @@ func TestGenerateSubscription_CDNNodeIsLast(t *testing.T) {
 	assert.Contains(t, last, "serviceName=vless")
 }
 
+func TestGenerateSubscription_NoActiveNodes_ReturnsError(t *testing.T) {
+	t.Parallel()
+	userID := uuid.New()
+	user := &domain.User{ID: userID, TelegramID: 9, SubToken: "token-9"}
+	uc := usecase.NewConfigUseCase(
+		&fakeUserRepo{user: user},
+		&fakeSubRepo{sub: nil},
+		&fakeNodeRepo{nodes: nil},
+	)
+	_, err := uc.GenerateSubscription(context.Background(), userID)
+	require.Error(t, err)
+}
+
 func TestGenerateSubscription_ExpiredSub_FallbackToFree(t *testing.T) {
 	userID := uuid.New()
 	user := &domain.User{ID: userID, TelegramID: 3, SubToken: "token-3"}

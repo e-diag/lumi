@@ -3,7 +3,9 @@ package bootstrap
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -73,8 +75,7 @@ func NewAPI(cfg *config.Config) (*API, error) {
 	}
 	r := NewRepositories(db)
 
-	remClient := remnawave.NewClient(cfg.Remnawave.BaseURL, cfg.Remnawave.APIKey)
-	remAdapter := remnawave.NewUsecaseAdapter(remClient)
+	remAdapter := newRemnawaveAdapter(cfg)
 
 	userUC := usecase.NewUserUseCase(r.User)
 	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, remAdapter)
@@ -125,8 +126,7 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 	r := NewRepositories(db)
 
 	userUC := usecase.NewUserUseCase(r.User)
-	remClient := remnawave.NewClient(cfg.Remnawave.BaseURL, cfg.Remnawave.APIKey)
-	remAdapter := remnawave.NewUsecaseAdapter(remClient)
+	remAdapter := newRemnawaveAdapter(cfg)
 	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, remAdapter)
 
 	yooClient := yookassa.NewClient(cfg.Yookassa.ShopID, cfg.Yookassa.SecretKey)
@@ -186,4 +186,15 @@ func NewWeb(cfg *config.Config, templateDir string) (*Web, error) {
 		return nil, fmt.Errorf("bootstrap: web handler: %w", err)
 	}
 	return &Web{DB: db, Config: cfg, Handler: wh}, nil
+}
+
+// newRemnawaveAdapter возвращает адаптер Remnawave или nil, если панель не настроена (альфа без синхронизации expiry в панели).
+func newRemnawaveAdapter(cfg *config.Config) usecase.RemnawaveClient {
+	base := strings.TrimSpace(cfg.Remnawave.BaseURL)
+	if base == "" {
+		slog.Warn("bootstrap: REMNAWAVE_BASE_URL is empty; subscription changes apply to DB only (no Remnawave API calls)")
+		return nil
+	}
+	remClient := remnawave.NewClient(cfg.Remnawave.BaseURL, cfg.Remnawave.APIKey)
+	return remnawave.NewUsecaseAdapter(remClient)
 }
