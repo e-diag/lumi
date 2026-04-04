@@ -244,6 +244,60 @@ docs/            # Документация
 
 | Область | Статус |
 |---------|--------|
-| Веб-панель менеджера | Есть: дашборд, пользователи (поиск, выдача/отзыв), ноды, платежи, routing. **Нет** отдельного UI для цен/тарифов (цены в коде `calcAmountKopeks`), глобальных настроек продукта, явной кнопки «переотправить ключ» (ключ — тот же `GET /sub/{token}`). |
+| Веб-панель менеджера | Есть: дашборд, пользователи (поиск, выдача/отзыв), ноды, платежи, routing, **тарифы** (`/admin/plans`), **настройки продукта** (`/admin/settings`), **каталог серверов** (`/admin/servers`). Нет отдельной кнопки «переотправить ключ» (ключ — тот же `GET /sub/{token}`). |
 | Бот `/manager` | Статистика, ноды, финансы, рассылка, роутинг, выдача/отзыв по callback; «Настройки» — заглушка; пользователи — команда `/user` с Telegram ID. |
 | 3x-ui | Один `inbound_id`; нет health-check панели в отчёте веб-UI (ноды по-прежнему из БД). |
+
+---
+
+## 11. GitHub Actions (CI/CD)
+
+Файл [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), workflow **CI / CD**.
+
+### Цепочка (порядок жёсткий)
+
+1. **Go** — `go mod verify`, `go vet`, `go test`, сборка всех `cmd/*`. При падении тестов дальше ничего не выполняется.
+2. **Docker** — сборка образа; на PR **без** push в реестр; на `main` / тег `v*` — push в **GHCR**.
+3. **Deploy** — только если задан secret `DEPLOY_HOST` и образ реально ушёл в реестр (не PR). Выполняется **после** успешных шагов 1–2.
+
+### События
+
+| Событие | Тесты + образ | Деплой на сервер |
+|---------|---------------|------------------|
+| **Pull request** в `main` | Да, без push в GHCR | Нет |
+| **Push** в `main` | Push `latest` + SHA | Да, если настроены secrets |
+| **Push** тега `v*` | Push semver-тегов | Да, если настроены secrets |
+| **workflow_dispatch** | Push (если ветка не PR-сценарий) | Только если включён чекбокс **deploy** и ref = `main` или тег `v*` |
+
+### Secrets репозитория (деплой)
+
+Задаются в **Settings → Secrets and variables → Actions** (не в `.env` на ноутбуке):
+
+| Secret | Обязательно | Описание |
+|--------|-------------|----------|
+| `DEPLOY_HOST` | Да, чтобы деплой работал | IP или hostname сервера |
+| `DEPLOY_USER` | Да | SSH-пользователь |
+| `DEPLOY_SSH_KEY` | Да | Приватный ключ (весь PEM, включая `BEGIN` / `END`) |
+| `DEPLOY_PATH` | Да | Каталог на сервере с `docker-compose.yml` (например `/opt/freeway`) |
+| `DEPLOY_GHCR_USER` | Рекомендуется | Логин GitHub для `docker login ghcr.io` на сервере |
+| `DEPLOY_GHCR_TOKEN` | Рекомендуется | [PAT](https://github.com/settings/tokens) с правом **read:packages** (или классический `read:packages`) |
+
+Если `DEPLOY_GHCR_*` не заданы, на сервере должен быть уже выполнен однократный `docker login ghcr.io`, иначе `docker compose pull` не подтянет приватный образ.
+
+Окружение GitHub **production** создаётся при первом деплое; при желании включите в нём [required reviewers](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) для ручного подтверждения выката.
+
+SSH по умолчанию **порт 22**. Нестандартный порт: добавьте в шаг `appleboy/ssh-action` в workflow параметр `port` (или настройте доступ с bastion).
+
+### Образ на сервере
+
+В `docker-compose` на сервере укажите образ из GHCR вместо `build: .`:
+
+```yaml
+image: ghcr.io/your-org/your-repo:latest
+```
+
+Имя: `ghcr.io/<владелец>/<репозиторий>` в нижнем регистре. Подробнее: [Container registry](https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+### Ручной выкат без нового коммита
+
+**Actions → CI / CD → Run workflow**: ветка `main` (или тег), включить **deploy** — после сборки и push образа выполнится тот же SSH-скрипт `compose pull && up`.
