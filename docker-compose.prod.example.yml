@@ -46,6 +46,20 @@ services:
       retries: 3
       start_period: 20s
 
+  worker:
+    image: ghcr.io/OWNER/REPO:latest
+    pull_policy: always
+    command: /app/worker
+    env_file: .env
+    environment:
+      CONFIG_PATH: /app/config.yaml
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   bot:
     image: ghcr.io/OWNER/REPO:latest
     pull_policy: always

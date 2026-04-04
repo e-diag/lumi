@@ -16,7 +16,6 @@ import (
 	"github.com/freeway-vpn/backend/internal/bootstrap"
 	apimw "github.com/freeway-vpn/backend/internal/handler/api/middleware"
 	"github.com/freeway-vpn/backend/internal/infrastructure/config"
-	"github.com/freeway-vpn/backend/internal/worker"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -97,14 +96,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	ctx, cancelWorkers := context.WithCancel(context.Background())
-	defer cancelWorkers()
-	go worker.NewPaymentWorker(app.PaymentUC).Start(ctx)
-	go worker.NewSubscriptionWorker(app.SubUC).Start(ctx)
-	go worker.NewNodeHealthWorker(app.NodeUC).Start(ctx)
-	go worker.NewDomainHealthWorker(app.NodeRepo).Start(ctx)
-	go worker.NewRoutingUpdateWorker(app.RoutingUC).Start(ctx)
-
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
@@ -118,7 +109,6 @@ func main() {
 
 	<-stop
 	slog.Info("shutting down...")
-	cancelWorkers()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -54,6 +54,7 @@ jobs:
         run: |
           set -e
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/api ./cmd/api
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/worker ./cmd/worker
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/bot ./cmd/bot
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/web ./cmd/web
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/migrator ./cmd/migrator

@@ -70,8 +70,21 @@ type API struct {
 	RoutingUC usecase.RoutingUseCase
 }
 
-// NewAPI подключается к БД и собирает стек для API.
-func NewAPI(cfg *config.Config) (*API, error) {
+// apiBackend — общая инициализация БД и use case для HTTP API и отдельного процесса воркеров.
+type apiBackend struct {
+	db        *gorm.DB
+	cfg       *config.Config
+	r         *Repositories
+	userUC    usecase.UserUseCase
+	subUC     usecase.SubscriptionUseCase
+	nodeUC    usecase.NodeUseCase
+	paymentUC usecase.PaymentUseCase
+	routingUC usecase.RoutingUseCase
+	probeUC   usecase.AccessProbeUseCase
+	configUC  usecase.ConfigUseCase
+}
+
+func newAPIBackend(cfg *config.Config) (*apiBackend, error) {
 	if err := cfg.ValidateAPI(); err != nil {
 		return nil, err
 	}
@@ -96,20 +109,66 @@ func NewAPI(cfg *config.Config) (*API, error) {
 	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node, cfg.XUI.PublicSubscriptionBaseURL, cfg.XUI.SubscriptionPath)
 	routingUC := usecase.NewRoutingUseCase(r.Routing)
 
+	return &apiBackend{
+		db:        db,
+		cfg:       cfg,
+		r:         r,
+		userUC:    userUC,
+		subUC:     subUC,
+		nodeUC:    nodeUC,
+		paymentUC: paymentUC,
+		routingUC: routingUC,
+		probeUC:   probeUC,
+		configUC:  configUC,
+	}, nil
+}
+
+// NewAPI подключается к БД и собирает стек для API.
+func NewAPI(cfg *config.Config) (*API, error) {
+	b, err := newAPIBackend(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &API{
-		DB:             db,
-		Config:         cfg,
-		SubHandler:     api.NewSubHandler(userUC, configUC, "FreeWay VPN", probeUC),
-		UserHandler:    api.NewUserHandler(userUC, subUC),
-		PaymentHandler: api.NewPaymentHandlerWithSubscription(paymentUC, subUC),
-		WebhookHandler: api.NewWebhookHandler(paymentUC),
-		AuthHandler:    api.NewAuthHandler(userUC, cfg.JWT.Secret, cfg.Bot.Token),
-		RoutingHandler: api.NewRoutingHandler(routingUC),
-		PaymentUC:      paymentUC,
-		SubUC:          subUC,
-		NodeUC:         nodeUC,
-		NodeRepo:       r.Node,
-		RoutingUC:      routingUC,
+		DB:             b.db,
+		Config:         b.cfg,
+		SubHandler:     api.NewSubHandler(b.userUC, b.configUC, "FreeWay VPN", b.probeUC),
+		UserHandler:    api.NewUserHandler(b.userUC, b.subUC),
+		PaymentHandler: api.NewPaymentHandlerWithSubscription(b.paymentUC, b.subUC),
+		WebhookHandler: api.NewWebhookHandler(b.paymentUC),
+		AuthHandler:    api.NewAuthHandler(b.userUC, b.cfg.JWT.Secret, b.cfg.Bot.Token),
+		RoutingHandler: api.NewRoutingHandler(b.routingUC),
+		PaymentUC:      b.paymentUC,
+		SubUC:          b.subUC,
+		NodeUC:         b.nodeUC,
+		NodeRepo:       b.r.Node,
+		RoutingUC:      b.routingUC,
+	}, nil
+}
+
+// Worker — зависимости фоновых воркеров (отдельный процесс cmd/worker, без HTTP).
+type Worker struct {
+	DB        *gorm.DB
+	PaymentUC usecase.PaymentUseCase
+	SubUC     usecase.SubscriptionUseCase
+	NodeUC    usecase.NodeUseCase
+	NodeRepo  repository.NodeRepository
+	RoutingUC usecase.RoutingUseCase
+}
+
+// NewWorker поднимает тот же стек БД/use case, что и API, но без HTTP-обработчиков.
+func NewWorker(cfg *config.Config) (*Worker, error) {
+	b, err := newAPIBackend(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Worker{
+		DB:        b.db,
+		PaymentUC: b.paymentUC,
+		SubUC:     b.subUC,
+		NodeUC:    b.nodeUC,
+		NodeRepo:  b.r.Node,
+		RoutingUC: b.routingUC,
 	}, nil
 }
 

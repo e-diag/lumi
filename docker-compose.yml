@@ -1,6 +1,6 @@
 # Сборка: каталог с этим файлом = контекст Docker. Нужен полный clone репозитория (рядом каталоги cmd/, internal/).
 #
-# DATABASE_DSN ниже переопределяет значение из .env для api/bot/web/migrator: внутри контейнера
+# DATABASE_DSN ниже переопределяет значение из .env для api/worker/bot/web/migrator: внутри контейнера
 # хост БД — сервис postgres, не localhost. Пароль только через PGPASSWORD (= POSTGRES_PASSWORD),
 # не в URL — иначе символы @ : / # ломают DSN, а несовпадение с томом даёт 28P01.
 services:
@@ -41,6 +41,20 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # Фоновые задачи (раньше были внутри api): вынесены в отдельный процесс, чтобы HTTP не конкурировал за CPU/RAM.
+  worker:
+    build: .
+    command: /app/worker
+    env_file: .env
+    environment:
+      CONFIG_PATH: /app/config.yaml
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   bot:
     build: .

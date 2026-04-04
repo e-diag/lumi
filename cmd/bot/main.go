@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 
@@ -36,6 +37,17 @@ func main() {
 	}
 	app.Handler.Register(b)
 
+	// Long polling не работает, пока у бота висит webhook или второй процесс держит getUpdates.
+	ctx := context.Background()
+	whCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ok, err := b.DeleteWebhook(whCtx, &tgbot.DeleteWebhookParams{DropPendingUpdates: false})
+	cancel()
+	if err != nil {
+		slog.Warn("telegram deleteWebhook failed", "error", err)
+	} else if ok {
+		slog.Info("telegram webhook removed; using long polling")
+	}
+
 	slog.Info("telegram bot started")
-	b.Start(context.Background())
+	b.Start(ctx)
 }

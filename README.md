@@ -9,7 +9,7 @@ go build ./...
 go test ./...
 ```
 
-Docker-образ собирает бинарники `api`, `bot`, `web`, `migrator` ([`Dockerfile`](Dockerfile)); `config.yaml` копируется в образ, переменные — из `.env` (см. [`docker-compose.yml`](docker-compose.yml)). **`docker compose build` нужно запускать из корня репозитория** (где лежат `cmd/` и `internal/`); иначе контекст будет крошечным и сборка упадёт с `cmd/api: directory not found`. Для продакшена без публикации Postgres наружу используйте [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml).
+Docker-образ собирает бинарники `api`, `worker`, `bot`, `web`, `migrator` ([`Dockerfile`](Dockerfile)); `config.yaml` копируется в образ, переменные — из `.env` (см. [`docker-compose.yml`](docker-compose.yml)). **`docker compose build` нужно запускать из корня репозитория** (где лежат `cmd/` и `internal/`); иначе контекст будет крошечным и сборка упадёт с `cmd/api: directory not found`. Для продакшена без публикации Postgres наружу используйте [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml).
 
 ## Архитектура
 
@@ -22,7 +22,8 @@ Docker-образ собирает бинарники `api`, `bot`, `web`, `migr
 
 | Команда | Роль |
 |---------|------|
-| [`cmd/api`](cmd/api) | REST, `GET /sub/{token}`, JWT, webhook ЮKassa, **встроенные воркеры** (платежи, подписки, ноды, routing) |
+| [`cmd/api`](cmd/api) | REST, `GET /sub/{token}`, JWT, webhook ЮKassa |
+| [`cmd/worker`](cmd/worker) | Фоновые задачи: платежи, подписки, health нод/доменов, обновление routing (в Docker — отдельный сервис `worker`) |
 | [`cmd/bot`](cmd/bot) | Пользовательский сценарий + `/manager` для `TELEGRAM_ADMIN_IDS` |
 | [`cmd/web`](cmd/web) | HTML/htmx панель (cookie + CSRF), порт из `config.yaml` |
 
