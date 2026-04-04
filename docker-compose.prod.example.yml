@@ -6,6 +6,7 @@
 #   docker compose -f docker-compose.prod.example.yml run --rm api /app/migrator
 # Затем: docker compose -f docker-compose.prod.example.yml up -d
 #
+# DSN с хостом postgres переопределяет localhost из .env внутри контейнеров.
 services:
   postgres:
     image: postgres:16-alpine
@@ -30,6 +31,7 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
     ports:
       - "8080:8080"
     depends_on:
@@ -50,6 +52,7 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +67,7 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
       WEB_TEMPLATE_DIR: /app/internal/handler/web/templates
     ports:
       - "3000:3000"
