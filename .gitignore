@@ -4,11 +4,11 @@
 *.pem
 *.crt
 
-# Бинарные файлы
+# Бинарники после go build в корне (не путать с cmd/api, cmd/web, cmd/migrator)
 /bin/
-api
-web
-migrator
+/api
+/web
+/migrator
 
 # Go
 *.test
