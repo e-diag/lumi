@@ -1,0 +1,11 @@
+{{define "content"}}
+<h2>Настройки продукта</h2>
+<div id="settings-msg"></div>
+<form class="card" hx-post="/admin/api/settings" hx-target="#settings-msg" hx-swap="innerHTML" style="max-width:520px;display:grid;gap:10px;">
+  <label>Дней триала (новый пользователь)<br><input type="number" name="trial_days" value="{{.S.TrialDays}}" min="0" max="365"></label>
+  <label>Реферальный бонус, дней<br><input type="number" name="referral_bonus_days" value="{{.S.ReferralBonusDays}}" min="0" max="365"></label>
+  <label>URL поддержки (t.me/… или https://…)<br><input type="text" name="support_url" value="{{.S.SupportURL}}" style="width:100%;"></label>
+  <button type="submit">Сохранить</button>
+</form>
+{{end}}
+{{define "settings.html"}}{{template "base" .}}{{end}}

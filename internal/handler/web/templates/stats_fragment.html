@@ -1,0 +1,37 @@
+{{define "stats_fragment.html"}}
+{{if .Stats}}
+  <div class="grid">
+    <div class="card">👥 {{.Stats.TotalUsers}} пользователей</div>
+    <div class="card">💎 {{.Stats.ActiveSubscriptions}} активных подписок</div>
+    <div class="card">⏳ {{.Stats.ExpiredSubscriptions}} истёкших записей</div>
+    <div class="card">💰 {{printf "%.0f" .Stats.RevenueMonth}} ₽</div>
+    <div class="card">🌐 {{len .Stats.Nodes}} нод</div>
+    <div class="card">🖥 {{.Stats.VPNServerRecords}} записей каталога серверов</div>
+  </div>
+  <h3>Новые пользователи за 30 дней (SVG)</h3>
+  <svg viewBox="0 0 600 120" style="width:100%;background:#1a1a1a;border-radius:10px;">
+    <polyline fill="none" stroke="#56d364" stroke-width="2"
+      points="10,100 60,92 110,95 160,80 210,76 260,70 310,74 360,66 410,62 460,58 510,52 560,50"></polyline>
+  </svg>
+  <small>Последние значения:</small>
+  <div>
+    {{range .Stats.NewUsersPerDay}}
+      <span style="margin-right:8px;">{{.Date}}: {{.Count}}</span>
+    {{end}}
+  </div>
+  <h3>Последние платежи</h3>
+  <table>
+    <tr><th>ЮKassa</th><th>User</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr>
+    {{range .Stats.RecentPayments}}
+    <tr><td>{{.YookassaID}}</td><td>{{.UserID}}</td><td>{{.Tier}}</td><td>{{.AmountRub}} ₽</td><td>{{.Status}}</td><td>{{.CreatedAt}}</td></tr>
+    {{end}}
+  </table>
+  <h3>Ноды</h3>
+  <ul>
+    {{range .Stats.Nodes}}
+      <li>{{.Name}} — {{if .IsOnline}}<span class="ok">online</span>{{else}}<span class="bad">offline</span>{{end}} ({{.LatencyMs}}ms)</li>
+    {{end}}
+  </ul>
+{{end}}
+{{end}}
+

@@ -1,0 +1,6 @@
+{{define "content"}}
+<h2>Тарифы</h2>
+<p class="card">Цены в копейках за весь период. Бот показывает сумму в рублях (целые). После смены цены новые платежи идут по новой сумме.</p>
+<div id="plans-root" hx-get="/admin/api/plans" hx-trigger="load" hx-swap="innerHTML"></div>
+{{end}}
+{{define "plans.html"}}{{template "base" .}}{{end}}

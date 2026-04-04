@@ -1,0 +1,6 @@
+{{define "content"}}
+<h2>Dashboard</h2>
+<div hx-get="/admin/api/stats" hx-trigger="load, every 30s" hx-swap="innerHTML"></div>
+{{end}}
+{{define "dashboard.html"}}{{template "base" .}}{{end}}
+

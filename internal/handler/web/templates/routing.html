@@ -1,0 +1,16 @@
+{{define "content"}}
+<h2>Роутинг</h2>
+<button hx-post="/admin/api/routing/update" hx-target="#routing-block" hx-swap="innerHTML">Обновить сейчас</button>
+<form hx-post="/admin/api/routing/add" hx-target="#routing-block" hx-swap="innerHTML" style="margin-top:12px;">
+  <input name="domain" placeholder="domain.com">
+  <select name="action">
+    <option value="proxy_eu">proxy_eu</option>
+    <option value="proxy_usa">proxy_usa</option>
+    <option value="direct">direct</option>
+  </select>
+  <button type="submit">Добавить</button>
+</form>
+<div id="routing-block" hx-get="/admin/api/routing" hx-trigger="load"></div>
+{{end}}
+{{define "routing.html"}}{{template "base" .}}{{end}}
+

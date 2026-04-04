@@ -1,0 +1,12 @@
+# Ускоряем контекст; не исключаем cmd/, internal/, go.mod и т.д.
+.git
+.github
+.idea
+.vscode
+*.md
+docs/
+.env
+.env.*
+postgres_data
+Thumbs.db
+.DS_Store

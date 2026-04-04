@@ -1,0 +1,10 @@
+{{define "users_table.html"}}
+<table>
+  <tr><th>TG ID</th><th>Username</th><th>Тариф</th><th>Активна до</th><th>Дней</th><th>Действия</th></tr>
+  {{range .Users}}
+    {{template "user_row.html" .}}
+  {{end}}
+</table>
+<div>Всего: {{.Total}}</div>
+{{end}}
+

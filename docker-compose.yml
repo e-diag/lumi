@@ -1,3 +1,4 @@
+# Сборка: каталог с этим файлом = контекст Docker. Нужен полный clone репозитория (рядом каталоги cmd/, internal/).
 services:
   postgres:
     image: postgres:16-alpine

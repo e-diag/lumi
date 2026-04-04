@@ -199,6 +199,7 @@ go test ./...
 
 | Симптом | Что проверить |
 |---------|----------------|
+| Docker: `stat /app/cmd/api: directory not found` / контекст ~9 KiB | Запускайте `docker compose` из **корня git-репозитория** (рядом `cmd/`, `internal/`). Не копируйте на сервер только `docker-compose.yml` + `.env` без исходников; либо используйте образ из GHCR (`pull`), а не `build` на сервере. |
 | `bootstrap failed` / `DATABASE_DSN is required` | `.env`, подстановка в `config.yaml` |
 | API не коннектится к БД в Docker | В DSN хост `postgres`, не `localhost`; пароль совпадает с `POSTGRES_PASSWORD` |
 | `JWT_SECRET must be at least 16 characters` | Удлините секрет |

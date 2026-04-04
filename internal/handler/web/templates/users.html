@@ -1,0 +1,7 @@
+{{define "content"}}
+<h2>Пользователи</h2>
+<input hx-get="/admin/api/users" hx-trigger="keyup changed delay:300ms" hx-target="#users-table" name="q" placeholder="Поиск...">
+<div id="users-table" hx-get="/admin/api/users" hx-trigger="load" hx-swap="innerHTML"></div>
+{{end}}
+{{define "users.html"}}{{template "base" .}}{{end}}
+

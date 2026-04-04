@@ -1,0 +1,6 @@
+{{define "content"}}
+<h2>Ноды</h2>
+<div hx-get="/admin/api/nodes" hx-trigger="load, every 30s" hx-swap="innerHTML"></div>
+{{end}}
+{{define "nodes.html"}}{{template "base" .}}{{end}}
+

@@ -1,0 +1,17 @@
+{{define "payments_table.html"}}
+<table>
+  <tr><th>ЮKassa ID</th><th>Пользователь</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr>
+  {{range .Payments}}
+    <tr>
+      <td>{{.YookassaID}}</td>
+      <td>{{.UserID}}</td>
+      <td>{{.Tier}}</td>
+      <td>{{.AmountRub}} ₽</td>
+      <td>{{.Status}}</td>
+      <td>{{.CreatedAt}}</td>
+    </tr>
+  {{end}}
+</table>
+<div>Итого за период: {{.Sum}} ₽</div>
+{{end}}
+

@@ -1,0 +1,14 @@
+{{define "content"}}
+<h2>Серверы (каталог)</h2>
+<p class="card">Учёт панелей для операционки. Основной провижининг по-прежнему из <code>XUI_*</code> в конфиге API/бота; здесь можно вести список и статусы.</p>
+<form class="card" hx-post="/admin/api/servers" hx-target="#servers-root" hx-swap="innerHTML" style="max-width:640px;display:grid;gap:10px;margin-bottom:16px;">
+  <label>Имя<br><input type="text" name="name" required style="width:100%;"></label>
+  <label>Регион<br><input type="text" name="region" placeholder="EU" style="width:100%;"></label>
+  <label>Base URL 3x-ui (без секрета)<br><input type="text" name="xui_base_url" placeholder="https://panel.example/panel" style="width:100%;"></label>
+  <label>Inbound ID (справочно)<br><input type="number" name="inbound_id" value="0"></label>
+  <label>Заметки<br><input type="text" name="notes" style="width:100%;"></label>
+  <button type="submit">Добавить</button>
+</form>
+<div id="servers-root" hx-get="/admin/api/servers" hx-trigger="load" hx-swap="innerHTML"></div>
+{{end}}
+{{define "servers.html"}}{{template "base" .}}{{end}}

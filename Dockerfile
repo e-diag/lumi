@@ -7,6 +7,12 @@ RUN go mod download
 
 COPY . .
 
+# Контекст должен быть корнем репозитория (есть cmd/api, internal/). Иначе на сервере часто только compose+config (~9 KiB) — сборка падает непонятно.
+RUN test -d ./cmd/api && test -d ./cmd/bot && test -d ./cmd/web && test -d ./cmd/migrator || ( \
+  echo "ERROR: неполный контекст Docker: нет ./cmd/*. Клонируйте весь репозиторий и запускайте docker compose из его корня (не из каталога только с compose-файлом)." >&2; \
+  echo "Содержимое контекста:" >&2; ls -la >&2; \
+  exit 1)
+
 # Компилируем все 4 бинаря
 RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/api      ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/bot      ./cmd/bot

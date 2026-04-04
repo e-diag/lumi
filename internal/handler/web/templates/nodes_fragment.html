@@ -1,0 +1,13 @@
+{{define "nodes_fragment.html"}}
+<div style="display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:12px;">
+{{range .Nodes}}
+  <div class="card">
+    <h4>{{.Name}}</h4>
+    <div>{{.Region}}</div>
+    <div>{{if .Active}}<span class="ok">online{{else}}<span class="bad">offline{{end}}</span></div>
+    <div>Latency: {{.LatencyMs}}ms</div>
+  </div>
+{{end}}
+</div>
+{{end}}
+

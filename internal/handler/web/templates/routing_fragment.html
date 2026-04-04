@@ -1,0 +1,17 @@
+{{define "routing_fragment.html"}}
+{{if .List}}
+<div class="card">
+  <div>Версия: {{.List.Version}}</div>
+  <div>proxy_eu: {{len .List.ProxyEU}}</div>
+  <div>proxy_usa: {{len .List.ProxyUSA}}</div>
+  <div>direct: {{len .List.Direct}}</div>
+</div>
+<h4>Manual domains</h4>
+<ul>
+{{range .List.Manual}}
+  <li>{{.}} <button hx-post="/admin/api/routing/delete" hx-vals='{"domain":"{{.}}"}' hx-target="#routing-block" hx-swap="innerHTML">Удалить</button></li>
+{{end}}
+</ul>
+{{end}}
+{{end}}
+

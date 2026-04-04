@@ -1,0 +1,47 @@
+{{define "base"}}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FreeWay Admin</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    body { margin:0; font-family: sans-serif; background:#0f0f0f; color:#e8e8e8; }
+    .layout { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+    .side { background:#121212; padding:20px; border-right:1px solid #2a2a2a; }
+    .side a { display:block; color:#ddd; text-decoration:none; padding:8px 0; }
+    .main { padding:24px; }
+    .card { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:10px; padding:14px; }
+    .grid { display:grid; gap:12px; grid-template-columns:repeat(4,minmax(180px,1fr)); }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid #2a2a2a; padding:10px; text-align:left; }
+    input, select, button { background:#1f1f1f; color:#eee; border:1px solid #333; border-radius:8px; padding:8px; }
+    .ok { color:#56d364; } .bad { color:#ff6b6b; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="side">
+      <h3>FreeWay Admin</h3>
+      <a href="/admin/">Dashboard</a>
+      <a href="/admin/users">Пользователи</a>
+      <a href="/admin/nodes">Ноды</a>
+      <a href="/admin/payments">Платежи</a>
+      <a href="/admin/plans">Тарифы</a>
+      <a href="/admin/settings">Настройки</a>
+      <a href="/admin/servers">Серверы</a>
+      <a href="/admin/routing">Роутинг</a>
+    </aside>
+    <main class="main">{{template "content" .}}</main>
+  </div>
+  <script>
+    document.body.addEventListener("htmx:configRequest", function(evt) {
+      const m = document.cookie.match(/(?:^|;\s*)admin_csrf=([^;]+)/);
+      if (m) evt.detail.headers["X-CSRF-Token"] = decodeURIComponent(m[1]);
+    });
+  </script>
+</body>
+</html>
+{{end}}
+

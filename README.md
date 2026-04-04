@@ -9,7 +9,7 @@ go build ./...
 go test ./...
 ```
 
-Docker-образ собирает бинарники `api`, `bot`, `web`, `migrator` ([`Dockerfile`](Dockerfile)); `config.yaml` копируется в образ, переменные — из `.env` (см. [`docker-compose.yml`](docker-compose.yml)). Для продакшена без публикации Postgres наружу используйте [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml).
+Docker-образ собирает бинарники `api`, `bot`, `web`, `migrator` ([`Dockerfile`](Dockerfile)); `config.yaml` копируется в образ, переменные — из `.env` (см. [`docker-compose.yml`](docker-compose.yml)). **`docker compose build` нужно запускать из корня репозитория** (где лежат `cmd/` и `internal/`); иначе контекст будет крошечным и сборка упадёт с `cmd/api: directory not found`. Для продакшена без публикации Postgres наружу используйте [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml).
 
 ## Архитектура
 

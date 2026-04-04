@@ -1,0 +1,19 @@
+{{define "content"}}
+<h2>Платежи</h2>
+<form hx-get="/admin/api/payments" hx-target="#payments-table" hx-trigger="change">
+  <select name="status">
+    <option value="">Все</option>
+    <option value="pending">pending</option>
+    <option value="succeeded">succeeded</option>
+    <option value="canceled">canceled</option>
+  </select>
+  <select name="period">
+    <option value="today">Сегодня</option>
+    <option value="week">Неделя</option>
+    <option value="month" selected>Месяц</option>
+  </select>
+</form>
+<div id="payments-table" hx-get="/admin/api/payments?period=month" hx-trigger="load"></div>
+{{end}}
+{{define "payments.html"}}{{template "base" .}}{{end}}
+

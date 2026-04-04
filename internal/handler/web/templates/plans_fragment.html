@@ -1,0 +1,25 @@
+{{define "plans_fragment.html"}}
+<table>
+  <tr><th>Код</th><th>Название</th><th>Tier</th><th>Дней</th><th>Копеек</th><th>Активен</th><th>Действия</th></tr>
+  {{range .Plans}}
+  <tr>
+    <td>{{.Code}}</td>
+    <td>{{.Name}}</td>
+    <td>{{.Tier}}</td>
+    <td>{{.DurationDays}}</td>
+    <td>
+      <form hx-post="/admin/api/plans/{{.ID}}/price" hx-target="#plans-root" hx-swap="innerHTML" style="display:flex;gap:6px;align-items:center;">
+        <input type="number" name="price_kopeks" value="{{.PriceKopeks}}" min="1" style="width:120px;">
+        <button type="submit">OK</button>
+      </form>
+    </td>
+    <td>{{if .Active}}<span class="ok">да</span>{{else}}<span class="bad">нет</span>{{end}}</td>
+    <td>
+      <form hx-post="/admin/api/plans/{{.ID}}/toggle" hx-target="#plans-root" hx-swap="innerHTML">
+        <button type="submit">Вкл/выкл</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}

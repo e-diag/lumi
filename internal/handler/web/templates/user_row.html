@@ -1,0 +1,14 @@
+{{define "user_row.html"}}
+<tr id="user-{{.ID}}">
+  <td>{{.TelegramID}}</td>
+  <td>{{.Username}}</td>
+  <td>{{if .Subscription}}{{.Subscription.Tier}}{{else}}free{{end}}</td>
+  <td>{{if .Subscription}}{{.Subscription.ExpiresAt}}{{else}}—{{end}}</td>
+  <td>{{if .Subscription}}{{.Subscription.DaysLeft}}{{else}}0{{end}}</td>
+  <td>
+    <button hx-post="/admin/api/users/{{.ID}}/grant" hx-target="#user-{{.ID}}" hx-swap="outerHTML">Выдать</button>
+    <button hx-post="/admin/api/users/{{.ID}}/revoke" hx-target="#user-{{.ID}}" hx-swap="outerHTML">Отозвать</button>
+  </td>
+</tr>
+{{end}}
+

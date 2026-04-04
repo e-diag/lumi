@@ -1,0 +1,19 @@
+{{define "servers_fragment.html"}}
+<table>
+  <tr><th>Имя</th><th>Регион</th><th>URL</th><th>Inbound</th><th>Активен</th><th></th></tr>
+  {{range .Servers}}
+  <tr>
+    <td>{{.Name}}</td>
+    <td>{{.Region}}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">{{.XUIBaseURL}}</td>
+    <td>{{.InboundID}}</td>
+    <td>{{if .Active}}<span class="ok">да</span>{{else}}<span class="bad">нет</span>{{end}}</td>
+    <td>
+      <form hx-post="/admin/api/servers/{{.ID}}/toggle" hx-target="#servers-root" hx-swap="innerHTML">
+        <button type="submit">Вкл/выкл</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
