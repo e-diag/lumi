@@ -4,6 +4,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -117,8 +119,45 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: parse yaml: %w", err)
 	}
 
+	applyEnvOverrides(&cfg)
+	rewriteLocalhostDBHostForDocker(&cfg)
 	applyDefaults(&cfg)
 	return &cfg, nil
+}
+
+// applyEnvOverrides: явные переменные окружения перекрывают значение из YAML (Compose иногда отдаёт .env раньше блока environment).
+func applyEnvOverrides(c *Config) {
+	if v := strings.TrimSpace(os.Getenv("DATABASE_DSN")); v != "" {
+		c.Database.DSN = v
+	}
+	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
+		c.JWT.Secret = v
+	}
+}
+
+// rewriteLocalhostDBHostForDocker: в контейнере localhost — не сервис postgres из docker compose.
+func rewriteLocalhostDBHostForDocker(c *Config) {
+	if c.Database.DSN == "" {
+		return
+	}
+	if _, err := os.Stat("/.dockerenv"); err != nil {
+		return
+	}
+	u, err := url.Parse(c.Database.DSN)
+	if err != nil || u.Hostname() == "" {
+		return
+	}
+	switch h := u.Hostname(); h {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return
+	}
+	port := u.Port()
+	if port == "" {
+		port = "5432"
+	}
+	u.Host = net.JoinHostPort("postgres", port)
+	c.Database.DSN = u.String()
 }
 
 func applyDefaults(c *Config) {
