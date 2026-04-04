@@ -37,24 +37,20 @@ func (r *accessProbeRepository) Append(ctx context.Context, userID uuid.UUID, ip
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return fmt.Errorf("repository: access probe append: %w", err)
 	}
-	for {
-		var n int64
-		if err := r.db.WithContext(ctx).Model(&domain.UserAccessProbe{}).
-			Where("user_id = ?", userID).Count(&n).Error; err != nil {
-			return fmt.Errorf("repository: access probe count: %w", err)
-		}
-		if n <= int64(keep) {
-			return nil
-		}
-		var oldest domain.UserAccessProbe
-		if err := r.db.WithContext(ctx).
-			Where("user_id = ?", userID).
-			Order("created_at ASC").
-			First(&oldest).Error; err != nil {
-			return fmt.Errorf("repository: access probe oldest: %w", err)
-		}
-		if err := r.db.WithContext(ctx).Delete(&oldest).Error; err != nil {
-			return fmt.Errorf("repository: access probe delete oldest: %w", err)
-		}
+	// Один запрос вместо цикла count/delete — меньше нагрузки на БД и нет риска долгого цикла при аномалиях.
+	if err := r.db.WithContext(ctx).Exec(`
+WITH counts AS (
+	SELECT COUNT(*)::bigint AS c FROM user_access_probes WHERE user_id = ?
+),
+to_delete AS (
+	SELECT id FROM user_access_probes
+	WHERE user_id = ?
+	ORDER BY created_at ASC
+	LIMIT GREATEST(0, (SELECT c FROM counts) - ?)
+)
+DELETE FROM user_access_probes WHERE id IN (SELECT id FROM to_delete)
+`, userID, userID, keep).Error; err != nil {
+		return fmt.Errorf("repository: access probe trim: %w", err)
 	}
+	return nil
 }

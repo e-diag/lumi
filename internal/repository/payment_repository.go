@@ -60,11 +60,16 @@ func (r *paymentRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (
 	return payments, nil
 }
 
+// maxPendingPaymentsPoll — за один тик воркера оплачиваем не больше строк, иначе при большой очереди
+// зависших pending API уходит в долгий цикл HTTP+БД и может держать CPU под нагрузкой.
+const maxPendingPaymentsPoll = 120
+
 func (r *paymentRepository) ListPendingOlderThan(ctx context.Context, t time.Time) ([]*domain.Payment, error) {
 	var payments []*domain.Payment
 	if err := r.db.WithContext(ctx).
 		Where("status = ? AND created_at < ?", domain.PaymentPending, t).
 		Order("created_at ASC").
+		Limit(maxPendingPaymentsPoll).
 		Find(&payments).Error; err != nil {
 		return nil, fmt.Errorf("repository: payment list pending older than: %w", err)
 	}

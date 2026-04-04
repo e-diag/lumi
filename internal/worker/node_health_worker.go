@@ -73,6 +73,11 @@ func (w *NodeHealthWorker) run(ctx context.Context) {
 				slog.Error("node down", "node", n.Name, "host", n.Host, "port", n.Port, "error", err)
 			}
 			_ = w.nodeUC.UpdateNode(ctx, n)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(15 * time.Millisecond):
+			}
 			continue
 		}
 
@@ -93,6 +98,12 @@ func (w *NodeHealthWorker) run(ctx context.Context) {
 		}
 		n.Active = true
 		_ = w.nodeUC.UpdateNode(ctx, n)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(15 * time.Millisecond):
+		}
 	}
 }
 

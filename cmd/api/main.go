@@ -41,7 +41,7 @@ func main() {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(apimw.RequestLogger)
-	r.Use(chiMiddleware.Compress(5, "application/json", "text/plain"))
+	r.Use(chiMiddleware.Compress(1, "application/json", "text/plain"))
 
 	r.With(apimw.SubscriptionRateLimit).Get("/sub/{token}", app.SubHandler.GetSubscription)
 

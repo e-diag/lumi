@@ -66,6 +66,11 @@ func (w *DomainHealthWorker) run(ctx context.Context) {
 		if err := w.nodeRepo.UpdateNodeDomain(ctx, d); err != nil {
 			slog.Error("domain health: save", "domain", d.Domain, "error", err)
 		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Millisecond):
+		}
 	}
 }
 

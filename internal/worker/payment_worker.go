@@ -16,7 +16,7 @@ type PaymentWorker struct {
 func NewPaymentWorker(paymentUC usecase.PaymentUseCase) *PaymentWorker {
 	return &PaymentWorker{
 		paymentUC: paymentUC,
-		interval:  30 * time.Second,
+		interval:  45 * time.Second,
 	}
 }
 
