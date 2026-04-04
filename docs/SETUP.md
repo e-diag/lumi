@@ -79,7 +79,7 @@
 | `YOOKASSA_SHOP_ID` | Идентификатор магазина |
 | `YOOKASSA_SECRET_KEY` | Секретный ключ |
 
-Обязательны для **cmd/api** и **cmd/bot** (валидация при старте). Для тестов ЮKassa используйте [тестовый магазин](https://yookassa.ru/developers/payment-acceptance/testing-and-going-live/testing) и те же переменные.
+Обязательны для **cmd/api** (REST, webhook, оплата через API). Для **cmd/bot** оба поля можно **не задавать**: бот стартует без онлайн-оплаты в чате, но выдаёт **триал**, **ссылку подписки** («Мои ключи»), **подключение**; менеджер по-прежнему может выдавать доступ через `/manager`. Если оба ключа заданы — в меню появляется «Купить подписку». Для тестов ЮKassa: [тестовый магазин](https://yookassa.ru/developers/payment-acceptance/testing-and-going-live/testing).
 
 ### Ноды (плейсхолдеры в seed БД)
 

@@ -225,6 +225,15 @@ func TestPaymentUseCase_CreatePayment(t *testing.T) {
 	}
 }
 
+func TestPaymentUseCase_CreatePayment_NoGateway(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	uc := usecase.NewPaymentUseCase(&mockPaymentRepo{}, nil, &mockSubUC{}, nil, "https://example.com", nil)
+	_, _, err := uc.CreatePayment(ctx, uuid.New(), domain.TierBasic, 30)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gateway not configured")
+}
+
 func TestPaymentUseCase_HandleWebhook_Succeeded_ActivatesSubscription(t *testing.T) {
 	t.Parallel()
 

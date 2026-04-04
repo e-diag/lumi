@@ -1,6 +1,6 @@
 # FreeWay VPN Backend
 
-Бэкенд **Telegram-first** VPN SaaS: основной продукт — Telegram-бот; оплата — **ЮKassa**; провижининг и источник подписки — **3x-ui**; бизнес-состояние — **PostgreSQL**. Клиенты: **Happ** (iOS) и **v2RayTun** (Android) — см. [`docs/SUPPORTED_CLIENTS.md`](docs/SUPPORTED_CLIENTS.md).
+Бэкенд **Telegram-first** VPN SaaS: основной продукт — Telegram-бот; оплата в боте/API — **ЮKassa** (для бота ключи и триал работают и без ЮKassa); провижининг и источник подписки — **3x-ui**; бизнес-состояние — **PostgreSQL**. Клиенты: **Happ** (iOS) и **v2RayTun** (Android) — см. [`docs/SUPPORTED_CLIENTS.md`](docs/SUPPORTED_CLIENTS.md).
 
 ## Сборка и тесты
 
@@ -30,7 +30,7 @@ Docker-образ собирает бинарники `api`, `bot`, `web`, `migr
 
 ## Быстрый старт
 
-1. `cp .env.example .env` — заполните `DATABASE_DSN`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `BASE_URL`, `YOOKASSA_*`, при необходимости **`XUI_*`** и `ADMIN_WEB_TOKEN`.
+1. `cp .env.example .env` — заполните `DATABASE_DSN`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `BASE_URL`; для API и оплаты нужны **`YOOKASSA_*`** (для одного только бота без оплаты в чате их можно не задавать); при необходимости **`XUI_*`** и `ADMIN_WEB_TOKEN`.
 2. `docker compose up --build`
 3. `curl http://localhost:8080/health` и `curl http://localhost:8080/health/ready`
 4. Веб-панель: `http://localhost:3000/admin/login` (токен = `ADMIN_WEB_TOKEN`)

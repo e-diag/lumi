@@ -168,6 +168,7 @@ func (c *Config) ValidateAPI() error {
 }
 
 // ValidateBot проверяет обязательные поля для cmd/bot.
+// ЮKassa не обязательна: без YOOKASSA_* бот работает (триал, ключи, выдача через /manager); оплата в боте отключена.
 func (c *Config) ValidateBot() error {
 	if c.Database.DSN == "" {
 		return fmt.Errorf("config: DATABASE_DSN is required")
@@ -175,11 +176,8 @@ func (c *Config) ValidateBot() error {
 	if c.Bot.Token == "" {
 		return fmt.Errorf("config: TELEGRAM_BOT_TOKEN is required")
 	}
-	if c.Yookassa.ShopID == "" || c.Yookassa.SecretKey == "" {
-		return fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY are required for bot payments")
-	}
 	if c.Server.BaseURL == "" {
-		return fmt.Errorf("config: BASE_URL is required for payment return URLs")
+		return fmt.Errorf("config: BASE_URL is required (ссылки подписки GET /sub/{token} в сообщениях бота)")
 	}
 	return nil
 }

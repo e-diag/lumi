@@ -23,16 +23,16 @@ import (
 
 // Repositories набор репозиториев на одно подключение к БД.
 type Repositories struct {
-	User             repository.UserRepository
-	Subscription     repository.SubscriptionRepository
-	Node             repository.NodeRepository
-	Payment          repository.PaymentRepository
-	Routing          repository.RoutingRepository
-	AccessProbe      repository.AccessProbeRepository
-	AntiAbuse        repository.BotAntiAbuseRepository
-	Plan             repository.PlanRepository
-	ProductSettings  repository.ProductSettingsRepository
-	VPNServer        repository.VPNServerRepository
+	User            repository.UserRepository
+	Subscription    repository.SubscriptionRepository
+	Node            repository.NodeRepository
+	Payment         repository.PaymentRepository
+	Routing         repository.RoutingRepository
+	AccessProbe     repository.AccessProbeRepository
+	AntiAbuse       repository.BotAntiAbuseRepository
+	Plan            repository.PlanRepository
+	ProductSettings repository.ProductSettingsRepository
+	VPNServer       repository.VPNServerRepository
 }
 
 // NewRepositories создаёт репозитории.
@@ -135,8 +135,14 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 	panelAdapter := newVPNPanelAdapter(cfg)
 	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, panelAdapter)
 
-	yooClient := yookassa.NewClient(cfg.Yookassa.ShopID, cfg.Yookassa.SecretKey)
-	yooGateway := yookassa.NewGatewayAdapter(yooClient)
+	var yooGateway usecase.PaymentGateway
+	paymentsEnabled := strings.TrimSpace(cfg.Yookassa.ShopID) != "" && strings.TrimSpace(cfg.Yookassa.SecretKey) != ""
+	if paymentsEnabled {
+		yooClient := yookassa.NewClient(cfg.Yookassa.ShopID, cfg.Yookassa.SecretKey)
+		yooGateway = yookassa.NewGatewayAdapter(yooClient)
+	} else {
+		slog.Info("bootstrap: YooKassa not configured; bot runs without in-bot payments (subscriptions and keys still work)")
+	}
 	paymentUC := usecase.NewPaymentUseCase(r.Payment, r.Plan, subUC, yooGateway, cfg.Server.BaseURL, nil)
 
 	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node, cfg.XUI.PublicSubscriptionBaseURL, cfg.XUI.SubscriptionPath)
@@ -152,6 +158,7 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 		AppURLAndroid:      cfg.Bot.AppURLAndroid,
 		PaymentDefaultDays: cfg.Bot.PaymentDefaultDays,
 		SupportURL:         cfg.Bot.SupportURL,
+		PaymentsEnabled:    paymentsEnabled,
 	}
 
 	h := bothandler.NewHandler(statsUC, userUC, subUC, paymentUC, nodeUC, routingUC, botUserUC, configUC, pub, r.ProductSettings, cfg.Bot.AdminIDs)

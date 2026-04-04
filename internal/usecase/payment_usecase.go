@@ -54,6 +54,9 @@ func (uc *paymentUseCase) CreatePayment(ctx context.Context, userID uuid.UUID, t
 	if days <= 0 {
 		return nil, "", fmt.Errorf("usecase: create payment: invalid days: %d", days)
 	}
+	if uc.gateway == nil {
+		return nil, "", fmt.Errorf("usecase: payment gateway not configured")
+	}
 
 	amountKopeks, err := domain.SubscriptionPriceKopeks(tier, days)
 	if err != nil {
