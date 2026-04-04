@@ -23,8 +23,9 @@ COPY --from=builder /bin/api      /app/api
 COPY --from=builder /bin/bot      /app/bot
 COPY --from=builder /bin/web      /app/web
 COPY --from=builder /bin/migrator /app/migrator
-COPY config.yaml /app/config.yaml
-COPY internal/handler/web/templates /app/internal/handler/web/templates
+COPY --from=builder /app/config.yaml /app/config.yaml
+# Из builder: на части серверов контекст сборки без этого каталога (sparse/rsync) — шаблоны уже в образе после COPY . .
+COPY --from=builder /app/internal/handler/web/templates /app/internal/handler/web/templates
 
 EXPOSE 8080 3000
 
