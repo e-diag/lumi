@@ -12,22 +12,24 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/freeway-vpn/backend/internal/domain"
+	"github.com/freeway-vpn/backend/internal/repository"
 	"github.com/freeway-vpn/backend/internal/usecase"
 )
 
 type Handler struct {
-	statsUC     usecase.StatsUseCase
-	userUC      usecase.UserUseCase
-	subUC       usecase.SubscriptionUseCase
-	paymentUC   usecase.PaymentUseCase
-	nodeUC      usecase.NodeUseCase
-	routingUC   usecase.RoutingUseCase
-	botUserUC   usecase.TelegramBotUserUseCase
-	configUC    usecase.ConfigUseCase
-	pub          PublicSettings
-	startRL      *telegramWindowLimiter
-	callbackRL   *telegramWindowLimiter
-	adminIDs     map[int64]struct{}
+	statsUC    usecase.StatsUseCase
+	userUC     usecase.UserUseCase
+	subUC      usecase.SubscriptionUseCase
+	paymentUC  usecase.PaymentUseCase
+	nodeUC     usecase.NodeUseCase
+	routingUC  usecase.RoutingUseCase
+	botUserUC  usecase.TelegramBotUserUseCase
+	configUC      usecase.ConfigUseCase
+	settingsRepo  repository.ProductSettingsRepository
+	pub           PublicSettings
+	startRL    *telegramWindowLimiter
+	callbackRL *telegramWindowLimiter
+	adminIDs   map[int64]struct{}
 
 	// Простое in-memory состояние FSM для рассылок/выдачи подписок.
 	mu              sync.Mutex
@@ -52,6 +54,7 @@ func NewHandler(
 	botUserUC usecase.TelegramBotUserUseCase,
 	configUC usecase.ConfigUseCase,
 	pub PublicSettings,
+	settingsRepo repository.ProductSettingsRepository,
 	adminIDs []int64,
 ) *Handler {
 	m := make(map[int64]struct{}, len(adminIDs))
@@ -70,6 +73,7 @@ func NewHandler(
 		routingUC:       routingUC,
 		botUserUC:       botUserUC,
 		configUC:        configUC,
+		settingsRepo:    settingsRepo,
 		pub:             pub,
 		startRL:         newTelegramWindowLimiter(),
 		callbackRL:      newTelegramWindowLimiter(),
@@ -341,4 +345,3 @@ func (h *Handler) edit(ctx context.Context, b *tgbot.Bot, chatID int64, messageI
 		slog.Error("bot edit failed", "error", err)
 	}
 }
-

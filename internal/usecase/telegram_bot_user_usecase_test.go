@@ -28,8 +28,10 @@ func (s *stubTelegramSubUC) ActivateSubscription(ctx context.Context, userID uui
 func (s *stubTelegramSubUC) ExtendSubscription(ctx context.Context, userID uuid.UUID, days int) (*domain.Subscription, error) {
 	return nil, nil
 }
-func (s *stubTelegramSubUC) DeactivateSubscription(ctx context.Context, userID uuid.UUID) error { return nil }
-func (s *stubTelegramSubUC) ExpireOld(ctx context.Context) error                              { return nil }
+func (s *stubTelegramSubUC) DeactivateSubscription(ctx context.Context, userID uuid.UUID) error {
+	return nil
+}
+func (s *stubTelegramSubUC) ExpireOld(ctx context.Context) error { return nil }
 func (s *stubTelegramSubUC) GetActiveByUserID(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error) {
 	return nil, nil
 }
@@ -65,8 +67,10 @@ func (m *memUserRepo) GetByTelegramID(ctx context.Context, telegramID int64) (*d
 	}
 	return nil, domain.ErrUserNotFound
 }
-func (m *memUserRepo) GetBySubToken(ctx context.Context, token string) (*domain.User, error) { return nil, domain.ErrUserNotFound }
-func (m *memUserRepo) Count(ctx context.Context) (int64, error)                               { return int64(len(m.users)), nil }
+func (m *memUserRepo) GetBySubToken(ctx context.Context, token string) (*domain.User, error) {
+	return nil, domain.ErrUserNotFound
+}
+func (m *memUserRepo) Count(ctx context.Context) (int64, error) { return int64(len(m.users)), nil }
 func (m *memUserRepo) List(ctx context.Context, query string, limit, offset int) ([]*domain.User, int64, error) {
 	return m.users, int64(len(m.users)), nil
 }
@@ -88,13 +92,14 @@ func TestTelegramBotUser_OnStart_NewUser_GrantsTrial(t *testing.T) {
 	t.Parallel()
 	repo := &memUserRepo{}
 	sub := &stubTelegramSubUC{}
-	uc := usecase.NewTelegramBotUserUseCase(repo, sub, nil, 0, 0)
+	uc := usecase.NewTelegramBotUserUseCase(repo, sub, nil, 0, 0, nil, 0)
 
 	u, out, err := uc.OnStart(context.Background(), 424242, "testuser", nil, usecase.TelegramClientMeta{})
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.True(t, out.IsNewUser)
 	require.True(t, out.TrialGranted)
+	require.Equal(t, 3, out.TrialDays)
 	assert.Equal(t, 1, sub.activateCalls)
 	assert.Equal(t, 0, sub.bonusCalls)
 	assert.True(t, u.WelcomeBonusUsed)
@@ -105,7 +110,7 @@ func TestTelegramBotUser_OnStart_Referral_GrantsBonusToInviter(t *testing.T) {
 	inviter := domain.NewUser(900001, "inviter")
 	repo := &memUserRepo{users: []*domain.User{inviter}}
 	sub := &stubTelegramSubUC{}
-	uc := usecase.NewTelegramBotUserUseCase(repo, sub, nil, 0, 0)
+	uc := usecase.NewTelegramBotUserUseCase(repo, sub, nil, 0, 0, nil, 0)
 
 	refID := inviter.ID
 	u, _, err := uc.OnStart(context.Background(), 900002, "newbie", &refID, usecase.TelegramClientMeta{})

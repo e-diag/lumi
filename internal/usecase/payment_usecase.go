@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/freeway-vpn/backend/internal/domain"
@@ -15,6 +16,7 @@ import (
 
 type paymentUseCase struct {
 	paymentRepo repository.PaymentRepository
+	planRepo    repository.PlanRepository
 	subUC       SubscriptionUseCase
 	gateway     PaymentGateway
 	baseURL     string
@@ -22,10 +24,12 @@ type paymentUseCase struct {
 }
 
 // NewPaymentUseCase создаёт реализацию PaymentUseCase.
+// planRepo может быть nil — ListActivePlans пусто, CreatePaymentByPlanCode вернёт ошибку.
 // notify может быть nil — тогда сообщения в Telegram после оплаты не отправляются.
-func NewPaymentUseCase(paymentRepo repository.PaymentRepository, subUC SubscriptionUseCase, gateway PaymentGateway, baseURL string, notify PaymentSuccessNotifier) PaymentUseCase {
+func NewPaymentUseCase(paymentRepo repository.PaymentRepository, planRepo repository.PlanRepository, subUC SubscriptionUseCase, gateway PaymentGateway, baseURL string, notify PaymentSuccessNotifier) PaymentUseCase {
 	return &paymentUseCase{
 		paymentRepo: paymentRepo,
+		planRepo:    planRepo,
 		subUC:       subUC,
 		gateway:     gateway,
 		baseURL:     baseURL,
@@ -50,7 +54,7 @@ func (uc *paymentUseCase) CreatePayment(ctx context.Context, userID uuid.UUID, t
 		return nil, "", fmt.Errorf("usecase: create payment: invalid days: %d", days)
 	}
 
-	amountKopeks, err := calcAmountKopeks(tier, days)
+	amountKopeks, err := domain.SubscriptionPriceKopeks(tier, days)
 	if err != nil {
 		return nil, "", fmt.Errorf("usecase: create payment: %w", err)
 	}
@@ -75,6 +79,7 @@ func (uc *paymentUseCase) CreatePayment(ctx context.Context, userID uuid.UUID, t
 	p := &domain.Payment{
 		ID:              uuid.New(),
 		UserID:          userID,
+		PlanID:          nil,
 		YookassaID:      providerPayment.ID,
 		AmountRub:       int(math.Round(float64(amountKopeks) / 100.0)), // временно: домен хранит рубли (обновим в рамках фазы 2)
 		Tier:            tier,
@@ -281,26 +286,75 @@ func (uc *paymentUseCase) ListByFilter(ctx context.Context, status string, perio
 	return rows, total, nil
 }
 
-func calcAmountKopeks(tier domain.SubscriptionTier, days int) (int64, error) {
-	price30, ok := map[domain.SubscriptionTier]int64{
-		domain.TierBasic:   14900,
-		domain.TierPremium: 29900,
-	}[tier]
-	if !ok {
-		return 0, fmt.Errorf("unknown tier: %s", tier)
+func (uc *paymentUseCase) ListActivePlans(ctx context.Context) ([]*domain.Plan, error) {
+	if uc.planRepo == nil {
+		return []*domain.Plan{}, nil
 	}
-	if days <= 0 {
-		return 0, fmt.Errorf("invalid days: %d", days)
+	list, err := uc.planRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("usecase: list active plans: %w", err)
+	}
+	return list, nil
+}
+
+func (uc *paymentUseCase) CreatePaymentByPlanCode(ctx context.Context, userID uuid.UUID, planCode string) (*domain.Payment, string, error) {
+	if uc.planRepo == nil {
+		return nil, "", fmt.Errorf("usecase: plans repository not configured")
+	}
+	code := strings.TrimSpace(planCode)
+	if code == "" {
+		return nil, "", fmt.Errorf("usecase: empty plan code")
+	}
+	plan, err := uc.planRepo.GetByCode(ctx, code)
+	if err != nil {
+		return nil, "", fmt.Errorf("usecase: get plan: %w", err)
+	}
+	if !plan.Active {
+		return nil, "", fmt.Errorf("usecase: plan inactive")
+	}
+	if uc.gateway == nil {
+		return nil, "", fmt.Errorf("usecase: payment gateway not configured")
 	}
 
-	// Пропорционально: price30 * days / 30. Округляем до копейки (математика целыми).
-	amount := price30 * int64(days)
-	kopeks := amount / 30
-	rem := amount % 30
-	if rem*2 >= 30 {
-		kopeks++
+	amountKopeks := plan.PriceKopeks
+	if amountKopeks <= 0 {
+		return nil, "", fmt.Errorf("usecase: invalid plan price")
 	}
-	return kopeks, nil
+	amountValue := formatKopeks(amountKopeks)
+	pid := plan.ID
+	providerPayment, err := uc.gateway.CreatePayment(ctx, PaymentGatewayCreateRequest{
+		AmountValue: amountValue,
+		Currency:    "RUB",
+		ReturnURL:   uc.baseURL + "/payment/return",
+		Description: fmt.Sprintf("FreeWay VPN %s", plan.Name),
+		Metadata: map[string]string{
+			"user_id":   userID.String(),
+			"tier":      string(plan.Tier),
+			"days":      strconv.Itoa(plan.DurationDays),
+			"plan_id":   plan.ID.String(),
+			"plan_code": plan.Code,
+		},
+		Capture: true,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("usecase: create payment by plan: gateway: %w", err)
+	}
+
+	p := &domain.Payment{
+		ID:              uuid.New(),
+		UserID:          userID,
+		PlanID:          &pid,
+		YookassaID:      providerPayment.ID,
+		AmountRub:       int(math.Round(float64(amountKopeks) / 100.0)),
+		Tier:            plan.Tier,
+		DurationDays:    plan.DurationDays,
+		Status:          domain.PaymentPending,
+		ConfirmationURL: providerPayment.ConfirmationURL,
+	}
+	if err := uc.paymentRepo.Create(ctx, p); err != nil {
+		return nil, "", fmt.Errorf("usecase: create payment by plan: save: %w", err)
+	}
+	return p, p.ConfirmationURL, nil
 }
 
 func formatKopeks(kopeks int64) string {
@@ -308,4 +362,3 @@ func formatKopeks(kopeks int64) string {
 	kop := kopeks % 100
 	return fmt.Sprintf("%d.%02d", rub, kop)
 }
-

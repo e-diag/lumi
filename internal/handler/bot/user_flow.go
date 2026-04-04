@@ -20,29 +20,33 @@ import (
 type PublicSettings struct {
 	BaseURL            string
 	BotUsername        string
-	AppURLIOS          string
-	AppURLAndroid      string
+	AppURLIOS          string // ссылка на Happ в App Store
+	AppURLAndroid      string // ссылка на v2RayTun в Google Play / RuStore
 	PaymentDefaultDays int
+	SupportURL         string // поддержка (t.me/..., https://...)
 }
 
 // Callback-префиксы пользовательского сценария (лимит Telegram 64 байта).
 const (
-	cbUserMenu  = "u:m"
-	cbUserConn  = "u:c"
-	cbUserProf  = "u:p"
-	cbUserPay   = "u:$"
-	cbUserInst  = "u:i"
-	cbUserRef   = "u:r"
+	cbUserMenu = "u:m"
+	cbUserConn = "u:c"
+	cbUserProf = "u:p"
+	cbUserPay  = "u:$"
+	cbUserInst = "u:i"
+	cbUserRef  = "u:r"
+	cbUserKeys = "u:k"
+	cbUserSup  = "u:s"
 	// legacy callbacks (старые клавиатуры в чате)
 	cbUserSpeed = "u:sp"
 	cbUserHelp  = "u:hp"
 
-	cbConnIOS  = "u:ci"
-	cbConnAnd  = "u:ca"
+	cbConnHapp = "u:ch"
+	cbConnV2   = "u:cv"
 	cbConnCopy = "u:cc"
 
 	cbBuyTierBasic   = "u:tb"
 	cbBuyTierPremium = "u:tp"
+	cbPlanPrefix     = "u:pl:"
 )
 
 func (h *Handler) subscriptionURL(subToken string) string {
@@ -93,33 +97,53 @@ func (h *Handler) onPublicStart(ctx context.Context, b *tgbot.Bot, update *model
 
 func composeWelcomeText(out *usecase.TelegramStartOutcome) string {
 	if out == nil {
-		return "FreeWay — YouTube, Telegram и ChatGPT без лишних настроек.\n\nВыберите действие:"
+		return "FreeWay VPN — доступ через Telegram, ключи для Happ и v2RayTun.\n\nВыберите действие:"
 	}
 	var b strings.Builder
-	b.WriteString("FreeWay — YouTube, Telegram и ChatGPT без лишних настроек.\n\n")
-	if out.IsNewUser && out.TrialGranted {
-		b.WriteString("Вам включили 3 пробных дня.\n\n")
+	b.WriteString("FreeWay VPN — доступ через Telegram, ключи для Happ и v2RayTun.\n\n")
+	if out.IsNewUser && out.TrialGranted && out.TrialDays > 0 {
+		b.WriteString(fmt.Sprintf("Вам включили %d %s.\n\n", out.TrialDays, trialDaysWordRu(out.TrialDays)))
 	}
 	if out.TrialSkippedByIP {
 		b.WriteString("С этой сети пробный период уже выдавали. Можно сразу купить доступ в меню.\n\n")
+	}
+	if out.TrialSkippedGlobal {
+		b.WriteString("Сейчас достигнут лимит пробных периодов на сервисе. Оформите платный доступ в меню.\n\n")
 	}
 	b.WriteString("Выберите действие:")
 	return b.String()
 }
 
-// userMainMenu — главное меню пользователя (закрытая альфа).
+func trialDaysWordRu(n int) string {
+	n = n % 100
+	if n >= 11 && n <= 14 {
+		return "пробных дней"
+	}
+	switch n % 10 {
+	case 1:
+		return "пробный день"
+	case 2, 3, 4:
+		return "пробных дня"
+	default:
+		return "пробных дней"
+	}
+}
+
+// userMainMenu — главное меню пользователя (Telegram-first).
 func userMainMenu() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: "🔌 Подключиться", CallbackData: cbUserConn}},
+			{{Text: "🔌 Подключить VPN", CallbackData: cbUserConn}},
 			{
 				{Text: "👤 Профиль", CallbackData: cbUserProf},
-				{Text: "💳 Оплатить", CallbackData: cbUserPay},
+				{Text: "💳 Купить подписку", CallbackData: cbUserPay},
 			},
+			{{Text: "🔑 Мои ключи / подписка", CallbackData: cbUserKeys}},
 			{
 				{Text: "📖 Инструкция", CallbackData: cbUserInst},
 				{Text: "🎁 Пригласить друга", CallbackData: cbUserRef},
 			},
+			{{Text: "💬 Поддержка", CallbackData: cbUserSup}},
 		},
 	}
 }
@@ -165,18 +189,22 @@ func (h *Handler) onUserCallback(ctx context.Context, b *tgbot.Bot, update *mode
 	switch data {
 	case cbUserMenu:
 		h.editUserText(ctx, b, chatID, msg.ID, "Главное меню", userMainMenu())
+	case cbUserKeys:
+		h.handleUserKeys(ctx, b, chatID, msg.ID, fromID)
+	case cbUserSup:
+		h.handleUserSupport(ctx, b, chatID, msg.ID)
 	case cbUserConn:
 		h.handleConnectStart(ctx, b, chatID, msg.ID, fromID)
-	case cbConnIOS:
-		h.showConnectDetail(ctx, b, chatID, msg.ID, fromID, "ios")
-	case cbConnAnd:
-		h.showConnectDetail(ctx, b, chatID, msg.ID, fromID, "android")
+	case cbConnHapp:
+		h.showConnectDetail(ctx, b, chatID, msg.ID, fromID, "happ")
+	case cbConnV2:
+		h.showConnectDetail(ctx, b, chatID, msg.ID, fromID, "v2raytun")
 	case cbConnCopy:
 		h.handleConnectCopy(ctx, b, chatID, msg.ID, fromID)
 	case cbUserProf:
 		h.handleUserProfile(ctx, b, chatID, msg.ID, fromID)
 	case cbUserPay:
-		h.editUserText(ctx, b, chatID, msg.ID, "Выберите тариф:", tierPickKeyboard())
+		h.showPlanPicker(ctx, b, chatID, msg.ID)
 	case cbBuyTierBasic:
 		h.editUserText(ctx, b, chatID, msg.ID, "Базовый — выберите срок:", periodBuyKeyboard("b"))
 	case cbBuyTierPremium:
@@ -190,6 +218,11 @@ func (h *Handler) onUserCallback(ctx context.Context, b *tgbot.Bot, update *mode
 	case cbUserRef:
 		h.handleUserReferral(ctx, b, chatID, msg.ID, fromID)
 	default:
+		if strings.HasPrefix(data, cbPlanPrefix) {
+			code := strings.TrimPrefix(data, cbPlanPrefix)
+			h.handleUserPaymentPlan(ctx, b, chatID, msg.ID, fromID, code)
+			break
+		}
 		if tier, days, ok := parsePayCallback(data); ok {
 			h.handleUserPayment(ctx, b, chatID, msg.ID, fromID, tier, days)
 		}
@@ -241,7 +274,7 @@ func (h *Handler) handleConnectStart(ctx context.Context, b *tgbot.Bot, chatID i
 	}
 	subURL := h.subscriptionURL(u.SubToken)
 	h.setLastSubURL(telegramID, subURL)
-	h.editUserText(ctx, b, chatID, messageID, "Выберите ваш телефон:", connectPlatformKeyboard())
+	h.editUserText(ctx, b, chatID, messageID, "Выберите приложение — так мы покажем нужный формат и шаги импорта:", connectPlatformKeyboard())
 }
 
 func (h *Handler) showConnectDetail(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int, telegramID int64, platform string) {
@@ -291,14 +324,14 @@ func (h *Handler) handleSpeedTest(ctx context.Context, b *tgbot.Bot, chatID int6
 func instructionText() string {
 	return `📖 Как подключиться
 
-1) Нажмите «Подключиться» → выберите iPhone или Android.
-2) Установите клиент (v2rayNG / V2Box) по кнопке «Скачать», если ещё не стоит.
-3) Нажмите «Подключиться» в боте — откроется импорт или скопируйте ссылку подписки (кнопка «Показать ссылку»).
-4) В «Оплатить» можно продлить доступ картой.
+1) «Подключить VPN» → Happ (iOS) или v2RayTun (Android).
+2) Установите приложение по кнопке «Скачать», если ещё не стоит.
+3) «Импорт подписки» / «Подключиться» — откроется клиент, либо скопируйте ссылку подписки.
+4) «Купить подписку» — оплата картой (ЮKassa).
 
-Устройства: одна ссылка подписки до 3 устройств (мягкий лимит, без жёсткой блокировки на этой фазе).
+Одна подписка — до 3 устройств (лимит в панели 3x-ui).
 
-Подробнее: docs/SUPPORTED_CLIENTS.md в репозитории.`
+Подробнее: docs/SUPPORTED_CLIENTS.md`
 }
 
 func (h *Handler) handleUserProfile(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int, telegramID int64) {
@@ -363,11 +396,100 @@ func (h *Handler) handleUserReferral(ctx context.Context, b *tgbot.Bot, chatID i
 			userMainMenu())
 		return
 	}
+	bonus := 3
+	if h.settingsRepo != nil {
+		if s, err := h.settingsRepo.Get(ctx); err == nil && s.ReferralBonusDays > 0 {
+			bonus = s.ReferralBonusDays
+		}
+	}
 	text := fmt.Sprintf(
-		"🎁 Пригласите друга\n\n%s\n\nКогда друг запустит бота по ссылке, вы получите +3 дня к подписке (если это новый пользователь и не та же сеть).",
+		"🎁 Пригласите друга\n\n%s\n\nКогда друг запустит бота по ссылке, вы получите +%d %s к подписке (если это новый пользователь и не та же сеть).",
 		link,
+		bonus,
+		referralBonusWordRu(bonus),
 	)
 	h.editUserText(ctx, b, chatID, messageID, text, userMainMenu())
+}
+
+func referralBonusWordRu(n int) string {
+	n = n % 100
+	if n >= 11 && n <= 14 {
+		return "дней"
+	}
+	switch n % 10 {
+	case 1:
+		return "день"
+	case 2, 3, 4:
+		return "дня"
+	default:
+		return "дней"
+	}
+}
+
+func (h *Handler) showPlanPicker(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int) {
+	if h.paymentUC == nil {
+		h.editUserText(ctx, b, chatID, messageID, "Оплата временно недоступна.", userMainMenu())
+		return
+	}
+	plans, err := h.paymentUC.ListActivePlans(ctx)
+	if err != nil {
+		slog.Error("bot list plans failed", "error", err)
+		h.editUserText(ctx, b, chatID, messageID, "Не удалось загрузить тарифы. Попробуйте позже.", userMainMenu())
+		return
+	}
+	if len(plans) == 0 {
+		h.editUserText(ctx, b, chatID, messageID, "Выберите тип подписки и срок:", tierPickKeyboard())
+		return
+	}
+	h.editUserText(ctx, b, chatID, messageID, "Выберите тариф:", plansBuyKeyboard(plans))
+}
+
+func plansBuyKeyboard(plans []*domain.Plan) models.InlineKeyboardMarkup {
+	rows := make([][]models.InlineKeyboardButton, 0, len(plans)+1)
+	for _, p := range plans {
+		label := fmt.Sprintf("%s — %d ₽", p.Name, p.PriceKopeks/100)
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: label, CallbackData: cbPlanPrefix + p.Code},
+		})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{{Text: "← Меню", CallbackData: cbUserMenu}})
+	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func (h *Handler) handleUserPaymentPlan(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int, telegramID int64, planCode string) {
+	if h.paymentUC == nil {
+		h.editUserText(ctx, b, chatID, messageID, "Оплата временно недоступна. Попробуйте позже.", userMainMenu())
+		return
+	}
+	u, err := h.userUC.GetByTelegramID(ctx, telegramID)
+	if err != nil {
+		h.editUserText(ctx, b, chatID, messageID, "Профиль не найден. Нажмите /start.", userMainMenu())
+		return
+	}
+	p, payURL, err := h.paymentUC.CreatePaymentByPlanCode(ctx, u.ID, planCode)
+	if err != nil {
+		slog.Error("bot user payment by plan failed", "error", err, "user_id", u.ID, "plan", planCode)
+		h.editUserText(ctx, b, chatID, messageID, "Не удалось создать платёж. Проверьте тариф или попробуйте позже.", userMainMenu())
+		return
+	}
+	_ = p
+	planTitle := planCode
+	if plans, lerr := h.paymentUC.ListActivePlans(ctx); lerr == nil {
+		for _, pl := range plans {
+			if pl.Code == planCode {
+				planTitle = pl.Name
+				break
+			}
+		}
+	}
+	text := fmt.Sprintf("💳 %s\n\nПосле оплаты доступ включится автоматически (обычно до пары минут).", planTitle)
+	kb := models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "💳 Оплатить", URL: payURL}},
+			{{Text: "🏠 Меню", CallbackData: cbUserMenu}},
+		},
+	}
+	h.editUserText(ctx, b, chatID, messageID, text, kb)
 }
 
 func (h *Handler) handleUserPayment(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int, telegramID int64, tier domain.SubscriptionTier, days int) {
@@ -399,6 +521,64 @@ func (h *Handler) handleUserPayment(ctx context.Context, b *tgbot.Bot, chatID in
 		},
 	}
 	h.editUserText(ctx, b, chatID, messageID, text, kb)
+}
+
+func (h *Handler) handleUserKeys(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int, telegramID int64) {
+	u, err := h.userUC.GetByTelegramID(ctx, telegramID)
+	if err != nil {
+		h.editUserText(ctx, b, chatID, messageID, "Профиль не найден. Нажмите /start.", userMainMenu())
+		return
+	}
+	subURL := h.subscriptionURL(u.SubToken)
+	h.setLastSubURL(telegramID, subURL)
+	sub, serr := h.subUC.GetUserSubscription(ctx, u.ID)
+	status := "нет данных"
+	expires := "—"
+	if serr == nil && sub != nil {
+		if sub.IsActive() {
+			status = "активна"
+			expires = sub.ExpiresAt.In(time.Local).Format("02.01.2006 15:04")
+		} else {
+			status = "истекла"
+			expires = sub.ExpiresAt.In(time.Local).Format("02.01.2006 15:04")
+		}
+	}
+	text := fmt.Sprintf(
+		"🔑 Мои ключи / подписка\n\n"+
+			"Статус: %s\n"+
+			"До: %s\n\n"+
+			"Ссылка подписки (импорт в Happ / v2RayTun):\n%s\n\n"+
+			"Если импорт не сработал — скопируйте ссылку вручную в приложении.",
+		status,
+		expires,
+		subURL,
+	)
+	kb := models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "📋 Скопировать ссылку", CallbackData: cbConnCopy}},
+			{{Text: "🏠 Меню", CallbackData: cbUserMenu}},
+		},
+	}
+	h.editUserText(ctx, b, chatID, messageID, text, kb)
+}
+
+func (h *Handler) handleUserSupport(ctx context.Context, b *tgbot.Bot, chatID int64, messageID int) {
+	h.editUserText(ctx, b, chatID, messageID, h.supportMessageText(ctx), userMainMenu())
+}
+
+func (h *Handler) supportMessageText(ctx context.Context) string {
+	if h.settingsRepo != nil {
+		s, err := h.settingsRepo.Get(ctx)
+		if err == nil {
+			if u := strings.TrimSpace(s.SupportURL); u != "" {
+				return "Поддержка:\n" + u
+			}
+		}
+	}
+	if s := strings.TrimSpace(h.pub.SupportURL); s != "" {
+		return "Поддержка:\n" + s
+	}
+	return "Напишите в поддержку через контакт, который выдал администратор, или оставьте заявку по ссылке из канала проекта."
 }
 
 func (h *Handler) sendPlain(ctx context.Context, b *tgbot.Bot, chatID int64, text string) {
@@ -449,12 +629,12 @@ func (h *Handler) onManagerCommand(ctx context.Context, b *tgbot.Bot, update *mo
 	}
 	chatID := update.Message.Chat.ID
 	if !h.isAdmin(update) {
-		h.sendPlain(ctx, b, chatID, "Access denied")
+		h.sendPlain(ctx, b, chatID, "Доступ запрещён.")
 		return
 	}
 	params := &tgbot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        "FreeWay Manager Panel",
+		Text:        "Панель менеджера FreeWay VPN",
 		ReplyMarkup: managerMainMenu(),
 	}
 	if _, err := b.SendMessage(ctx, params); err != nil {

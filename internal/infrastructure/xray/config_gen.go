@@ -59,4 +59,3 @@ func GenerateVLESSWebSocket(userUUID string, node *domain.Node) string {
 		url.PathEscape(node.Name),
 	)
 }
-

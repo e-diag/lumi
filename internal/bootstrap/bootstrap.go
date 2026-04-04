@@ -14,8 +14,8 @@ import (
 	webhandler "github.com/freeway-vpn/backend/internal/handler/web"
 	"github.com/freeway-vpn/backend/internal/infrastructure/config"
 	"github.com/freeway-vpn/backend/internal/infrastructure/database"
-	"github.com/freeway-vpn/backend/internal/infrastructure/remnawave"
 	"github.com/freeway-vpn/backend/internal/infrastructure/telegramnotify"
+	"github.com/freeway-vpn/backend/internal/infrastructure/xui"
 	"github.com/freeway-vpn/backend/internal/infrastructure/yookassa"
 	"github.com/freeway-vpn/backend/internal/repository"
 	"github.com/freeway-vpn/backend/internal/usecase"
@@ -23,25 +23,31 @@ import (
 
 // Repositories набор репозиториев на одно подключение к БД.
 type Repositories struct {
-	User         repository.UserRepository
-	Subscription repository.SubscriptionRepository
-	Node         repository.NodeRepository
-	Payment      repository.PaymentRepository
-	Routing      repository.RoutingRepository
-	AccessProbe  repository.AccessProbeRepository
-	AntiAbuse    repository.BotAntiAbuseRepository
+	User             repository.UserRepository
+	Subscription     repository.SubscriptionRepository
+	Node             repository.NodeRepository
+	Payment          repository.PaymentRepository
+	Routing          repository.RoutingRepository
+	AccessProbe      repository.AccessProbeRepository
+	AntiAbuse        repository.BotAntiAbuseRepository
+	Plan             repository.PlanRepository
+	ProductSettings  repository.ProductSettingsRepository
+	VPNServer        repository.VPNServerRepository
 }
 
 // NewRepositories создаёт репозитории.
 func NewRepositories(db *gorm.DB) *Repositories {
 	return &Repositories{
-		User:         repository.NewUserRepository(db),
-		Subscription: repository.NewSubscriptionRepository(db),
-		Node:         repository.NewNodeRepository(db),
-		Payment:      repository.NewPaymentRepository(db),
-		Routing:      repository.NewRoutingRepository(db),
-		AccessProbe:  repository.NewAccessProbeRepository(db),
-		AntiAbuse:    repository.NewBotAntiAbuseRepository(db),
+		User:            repository.NewUserRepository(db),
+		Subscription:    repository.NewSubscriptionRepository(db),
+		Node:            repository.NewNodeRepository(db),
+		Payment:         repository.NewPaymentRepository(db),
+		Routing:         repository.NewRoutingRepository(db),
+		AccessProbe:     repository.NewAccessProbeRepository(db),
+		AntiAbuse:       repository.NewBotAntiAbuseRepository(db),
+		Plan:            repository.NewPlanRepository(db),
+		ProductSettings: repository.NewProductSettingsRepository(db),
+		VPNServer:       repository.NewVPNServerRepository(db),
 	}
 }
 
@@ -75,19 +81,19 @@ func NewAPI(cfg *config.Config) (*API, error) {
 	}
 	r := NewRepositories(db)
 
-	remAdapter := newRemnawaveAdapter(cfg)
+	panelAdapter := newVPNPanelAdapter(cfg)
 
 	userUC := usecase.NewUserUseCase(r.User)
-	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, remAdapter)
+	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, panelAdapter)
 	nodeUC := usecase.NewNodeUseCase(r.Node)
 
 	yooClient := yookassa.NewClient(cfg.Yookassa.ShopID, cfg.Yookassa.SecretKey)
 	yooGateway := yookassa.NewGatewayAdapter(yooClient)
 	payNotify := telegramnotify.NewPaymentSuccessNotifier(cfg.Bot.Token, r.User)
-	paymentUC := usecase.NewPaymentUseCase(r.Payment, subUC, yooGateway, cfg.Server.BaseURL, payNotify)
+	paymentUC := usecase.NewPaymentUseCase(r.Payment, r.Plan, subUC, yooGateway, cfg.Server.BaseURL, payNotify)
 
 	probeUC := usecase.NewAccessProbeUseCase(r.AccessProbe)
-	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node)
+	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node, cfg.XUI.PublicSubscriptionBaseURL, cfg.XUI.SubscriptionPath)
 	routingUC := usecase.NewRoutingUseCase(r.Routing)
 
 	return &API{
@@ -126,17 +132,17 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 	r := NewRepositories(db)
 
 	userUC := usecase.NewUserUseCase(r.User)
-	remAdapter := newRemnawaveAdapter(cfg)
-	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, remAdapter)
+	panelAdapter := newVPNPanelAdapter(cfg)
+	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, panelAdapter)
 
 	yooClient := yookassa.NewClient(cfg.Yookassa.ShopID, cfg.Yookassa.SecretKey)
 	yooGateway := yookassa.NewGatewayAdapter(yooClient)
-	paymentUC := usecase.NewPaymentUseCase(r.Payment, subUC, yooGateway, cfg.Server.BaseURL, nil)
+	paymentUC := usecase.NewPaymentUseCase(r.Payment, r.Plan, subUC, yooGateway, cfg.Server.BaseURL, nil)
 
-	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node)
-	botUserUC := usecase.NewTelegramBotUserUseCase(r.User, subUC, r.AntiAbuse, cfg.Bot.MaxTrialsPerIP, cfg.Bot.ReferralBonusMaxPerMonth)
+	configUC := usecase.NewConfigUseCase(r.User, r.Subscription, r.Node, cfg.XUI.PublicSubscriptionBaseURL, cfg.XUI.SubscriptionPath)
+	botUserUC := usecase.NewTelegramBotUserUseCase(r.User, subUC, r.AntiAbuse, cfg.Bot.MaxTrialsPerIP, cfg.Bot.ReferralBonusMaxPerMonth, r.ProductSettings, cfg.Bot.TrialGlobalCapPer24h)
 	nodeUC := usecase.NewNodeUseCase(r.Node)
-	statsUC := usecase.NewStatsUseCase(r.User, r.Subscription, r.Payment, r.Node)
+	statsUC := usecase.NewStatsUseCase(r.User, r.Subscription, r.Payment, r.Node, r.VPNServer)
 	routingUC := usecase.NewRoutingUseCase(r.Routing)
 
 	pub := bothandler.PublicSettings{
@@ -145,9 +151,10 @@ func NewBot(cfg *config.Config) (*Bot, error) {
 		AppURLIOS:          cfg.Bot.AppURLIOS,
 		AppURLAndroid:      cfg.Bot.AppURLAndroid,
 		PaymentDefaultDays: cfg.Bot.PaymentDefaultDays,
+		SupportURL:         cfg.Bot.SupportURL,
 	}
 
-	h := bothandler.NewHandler(statsUC, userUC, subUC, paymentUC, nodeUC, routingUC, botUserUC, configUC, pub, cfg.Bot.AdminIDs)
+	h := bothandler.NewHandler(statsUC, userUC, subUC, paymentUC, nodeUC, routingUC, botUserUC, configUC, pub, r.ProductSettings, cfg.Bot.AdminIDs)
 
 	return &Bot{DB: db, Config: cfg, Handler: h}, nil
 }
@@ -172,29 +179,43 @@ func NewWeb(cfg *config.Config, templateDir string) (*Web, error) {
 	r := NewRepositories(db)
 
 	userUC := usecase.NewUserUseCase(r.User)
-	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, nil)
+	subUC := usecase.NewSubscriptionUseCase(r.Subscription, r.User, newVPNPanelAdapter(cfg))
 	nodeUC := usecase.NewNodeUseCase(r.Node)
-	statsUC := usecase.NewStatsUseCase(r.User, r.Subscription, r.Payment, r.Node)
-	paymentUC := usecase.NewPaymentUseCase(r.Payment, subUC, nil, cfg.Server.BaseURL, nil)
+	statsUC := usecase.NewStatsUseCase(r.User, r.Subscription, r.Payment, r.Node, r.VPNServer)
+	paymentUC := usecase.NewPaymentUseCase(r.Payment, r.Plan, subUC, nil, cfg.Server.BaseURL, nil)
 	routingUC := usecase.NewRoutingUseCase(r.Routing)
 
 	if templateDir == "" {
 		templateDir = filepath.Join("internal", "handler", "web", "templates")
 	}
-	wh, err := webhandler.NewWebHandler(statsUC, userUC, subUC, nodeUC, paymentUC, routingUC, cfg.Web.AdminToken, templateDir)
+	wh, err := webhandler.NewWebHandler(statsUC, userUC, subUC, nodeUC, paymentUC, routingUC, r.Plan, r.ProductSettings, r.VPNServer, cfg.Web.AdminToken, templateDir)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap: web handler: %w", err)
 	}
 	return &Web{DB: db, Config: cfg, Handler: wh}, nil
 }
 
-// newRemnawaveAdapter возвращает адаптер Remnawave или nil, если панель не настроена (альфа без синхронизации expiry в панели).
-func newRemnawaveAdapter(cfg *config.Config) usecase.RemnawaveClient {
-	base := strings.TrimSpace(cfg.Remnawave.BaseURL)
+// newVPNPanelAdapter возвращает адаптер 3x-ui или nil, если интеграция не настроена.
+func newVPNPanelAdapter(cfg *config.Config) usecase.VPNPanelClient {
+	base := strings.TrimSpace(cfg.XUI.BaseURL)
 	if base == "" {
-		slog.Warn("bootstrap: REMNAWAVE_BASE_URL is empty; subscription changes apply to DB only (no Remnawave API calls)")
+		slog.Warn("bootstrap: XUI base_url is empty; subscription changes apply to DB only (no 3x-ui API calls)")
 		return nil
 	}
-	remClient := remnawave.NewClient(cfg.Remnawave.BaseURL, cfg.Remnawave.APIKey)
-	return remnawave.NewUsecaseAdapter(remClient)
+	if cfg.XUI.InboundID <= 0 {
+		slog.Warn("bootstrap: XUI inbound_id is not set; skipping 3x-ui adapter")
+		return nil
+	}
+	a, err := xui.NewAdapter(xui.Config{
+		BaseURL:   base,
+		Username:  cfg.XUI.Username,
+		Password:  cfg.XUI.Password,
+		InboundID: cfg.XUI.InboundID,
+		LimitIP:   3,
+	})
+	if err != nil {
+		slog.Warn("bootstrap: 3x-ui adapter failed", "error", err)
+		return nil
+	}
+	return a
 }

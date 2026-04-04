@@ -23,4 +23,3 @@ func (h *Handler) handleNodes(ctx context.Context, b *tgbot.Bot, chatID int64, m
 	}
 	h.edit(ctx, b, chatID, messageID, text, twoButtons("🔄 Проверить", "nodes_check", "← Назад", "back"))
 }
-

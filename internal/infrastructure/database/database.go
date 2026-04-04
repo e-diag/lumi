@@ -30,6 +30,10 @@ func Connect(dsn string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("database: seed: %w", err)
 	}
 
+	if err := seedCatalog(db); err != nil {
+		return nil, fmt.Errorf("database: seed catalog: %w", err)
+	}
+
 	if err := backfillNodeTopology(db); err != nil {
 		return nil, fmt.Errorf("database: topology backfill: %w", err)
 	}
@@ -53,6 +57,9 @@ func migrate(db *gorm.DB) error {
 		&domain.BotTrialSignup{},
 		&domain.ReferralBonusLog{},
 		&domain.UserAccessProbe{},
+		&domain.Plan{},
+		&domain.ProductSettings{},
+		&domain.VPNServer{},
 	); err != nil {
 		return err
 	}
@@ -104,15 +111,15 @@ func seed(db *gorm.DB) error {
 			Active:    true,
 		},
 		{
-			ID:        uuid.New(),
-			Name:      "CDN (Yandex Cloud)",
-			Host:      "${NODE_CDN_HOST}",
-			Port:      443,
-			Region:    domain.RegionCDN,
-			Transport: domain.TransportGRPC,
-			SNI:       "${NODE_CDN_SNI}",
+			ID:              uuid.New(),
+			Name:            "CDN (Yandex Cloud)",
+			Host:            "${NODE_CDN_HOST}",
+			Port:            443,
+			Region:          domain.RegionCDN,
+			Transport:       domain.TransportGRPC,
+			SNI:             "${NODE_CDN_SNI}",
 			GRPCServiceName: "vless",
-			Active:    true,
+			Active:          true,
 		},
 	}
 

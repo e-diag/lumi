@@ -75,4 +75,3 @@ func (h *Handler) handleRevoke(ctx context.Context, b *tgbot.Bot, chatID int64, 
 	}
 	h.edit(ctx, b, chatID, messageID, "Подписка отозвана", backMenu())
 }
-

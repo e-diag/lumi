@@ -20,7 +20,7 @@ type NodeDomain struct {
 	// ConsecutiveFails — подряд неудачных проверок (сбрасывается при успехе).
 	ConsecutiveFails int `gorm:"not null;default:0"`
 	// Weight — вес для взвешенного случайного выбора (≥1).
-	Weight int `gorm:"not null;default:1"`
+	Weight    int `gorm:"not null;default:1"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

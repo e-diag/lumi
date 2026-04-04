@@ -45,4 +45,3 @@ func twoButtons(aText, aCb, bText, bCb string) models.InlineKeyboardMarkup {
 		},
 	}
 }
-

@@ -12,17 +12,18 @@ import (
 )
 
 type subscriptionUseCase struct {
-	subRepo repository.SubscriptionRepository
+	subRepo  repository.SubscriptionRepository
 	userRepo repository.UserRepository
-	remnawave RemnawaveClient
+	panel    VPNPanelClient
 }
 
 // NewSubscriptionUseCase создаёт реализацию SubscriptionUseCase.
-func NewSubscriptionUseCase(subRepo repository.SubscriptionRepository, userRepo repository.UserRepository, remnawave RemnawaveClient) SubscriptionUseCase {
+// panel может быть nil — изменения только в БД (без вызовов 3x-ui).
+func NewSubscriptionUseCase(subRepo repository.SubscriptionRepository, userRepo repository.UserRepository, panel VPNPanelClient) SubscriptionUseCase {
 	return &subscriptionUseCase{
-		subRepo:   subRepo,
-		userRepo:  userRepo,
-		remnawave: remnawave,
+		subRepo:  subRepo,
+		userRepo: userRepo,
+		panel:    panel,
 	}
 }
 
@@ -210,14 +211,23 @@ func (uc *subscriptionUseCase) applyTierSideEffects(ctx context.Context, userID 
 
 	limits := domain.TierLimitsMap[tier]
 	user.DeviceLimit = limits.Devices
+
+	if uc.panel != nil {
+		res, err := uc.panel.SyncUserAccess(ctx, user, tier, expiresAt)
+		if err != nil {
+			return fmt.Errorf("vpn panel sync: %w", err)
+		}
+		if res != nil {
+			if res.ClientUUID != "" {
+				user.PanelClientUUID = res.ClientUUID
+			}
+			if res.SubID != "" {
+				user.PanelSubID = res.SubID
+			}
+		}
+	}
 	if err := uc.userRepo.Update(ctx, user); err != nil {
 		return fmt.Errorf("update user: %w", err)
-	}
-
-	if uc.remnawave != nil {
-		if err := uc.remnawave.UpdateUserExpiry(ctx, user.ID.String(), expiresAt); err != nil {
-			return fmt.Errorf("remnawave update expiry: %w", err)
-		}
 	}
 	return nil
 }

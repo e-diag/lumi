@@ -33,6 +33,17 @@ func (r *botAntiAbuseRepository) CountTrialGrantsByIP(ctx context.Context, ip st
 	return n, nil
 }
 
+func (r *botAntiAbuseRepository) CountTrialGrantsGloballySince(ctx context.Context, since time.Time) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&domain.BotTrialSignup{}).
+		Where("trial_granted = ? AND created_at >= ?", true, since).
+		Count(&n).Error
+	if err != nil {
+		return 0, fmt.Errorf("repository: count trial global since: %w", err)
+	}
+	return n, nil
+}
+
 func (r *botAntiAbuseRepository) InsertTrialSignup(ctx context.Context, row *domain.BotTrialSignup) error {
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return fmt.Errorf("repository: insert trial signup: %w", err)

@@ -81,6 +81,17 @@ func (r *subscriptionRepository) CountActiveByTier(ctx context.Context, tier dom
 	return count, nil
 }
 
+func (r *subscriptionRepository) CountExpired(ctx context.Context, now time.Time) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Subscription{}).
+		Where("expires_at < ?", now).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("repository: subscription count expired: %w", err)
+	}
+	return count, nil
+}
+
 func (r *subscriptionRepository) Update(ctx context.Context, sub *domain.Subscription) error {
 	if err := r.db.WithContext(ctx).Save(sub).Error; err != nil {
 		return fmt.Errorf("repository: subscription update: %w", err)

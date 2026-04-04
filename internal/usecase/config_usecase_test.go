@@ -43,7 +43,9 @@ func (r *fakeUserRepo) List(_ context.Context, _ string, _ int, _ int) ([]*domai
 	}
 	return []*domain.User{r.user}, 1, nil
 }
-func (r *fakeUserRepo) CountCreatedBetween(_ context.Context, _, _ time.Time) (int64, error) { return 0, nil }
+func (r *fakeUserRepo) CountCreatedBetween(_ context.Context, _, _ time.Time) (int64, error) {
+	return 0, nil
+}
 func (r *fakeUserRepo) Update(_ context.Context, _ *domain.User) error { return nil }
 func (r *fakeUserRepo) Delete(_ context.Context, _ uuid.UUID) error    { return nil }
 
@@ -68,8 +70,9 @@ func (r *fakeSubRepo) CountActive(_ context.Context, _ time.Time) (int64, error)
 func (r *fakeSubRepo) CountActiveByTier(_ context.Context, _ domain.SubscriptionTier, _ time.Time) (int64, error) {
 	return 0, nil
 }
-func (r *fakeSubRepo) Update(_ context.Context, _ *domain.Subscription) error { return nil }
-func (r *fakeSubRepo) Delete(_ context.Context, _ uuid.UUID) error            { return nil }
+func (r *fakeSubRepo) CountExpired(_ context.Context, _ time.Time) (int64, error) { return 0, nil }
+func (r *fakeSubRepo) Update(_ context.Context, _ *domain.Subscription) error     { return nil }
+func (r *fakeSubRepo) Delete(_ context.Context, _ uuid.UUID) error                { return nil }
 
 type fakeNodeRepo struct {
 	nodes []*domain.Node
@@ -147,6 +150,8 @@ func TestGenerateSubscription_FreeUserNoSub_OnlyEUNode(t *testing.T) {
 		&fakeUserRepo{user: user},
 		&fakeSubRepo{sub: nil}, // нет подписки → Free
 		&fakeNodeRepo{nodes: makeTestNodes()},
+		"",
+		"",
 	)
 
 	encoded, err := uc.GenerateSubscription(context.Background(), userID)
@@ -182,6 +187,8 @@ func TestGenerateSubscription_PremiumUser_AllNodes(t *testing.T) {
 		&fakeUserRepo{user: user},
 		&fakeSubRepo{sub: sub},
 		&fakeNodeRepo{nodes: nodes},
+		"",
+		"",
 	)
 
 	encoded, err := uc.GenerateSubscription(context.Background(), userID)
@@ -218,7 +225,7 @@ func TestGenerateSubscription_CDNNodeIsLast(t *testing.T) {
 		{ID: uuid.New(), Name: "EU", Host: "eu.example.com", Port: 443, Region: domain.RegionEU, Transport: domain.TransportReality, PublicKey: "pk", ShortID: "sid", SNI: "google.com", Active: true},
 	}
 
-	uc := usecase.NewConfigUseCase(&fakeUserRepo{user: user}, &fakeSubRepo{sub: sub}, &fakeNodeRepo{nodes: nodes})
+	uc := usecase.NewConfigUseCase(&fakeUserRepo{user: user}, &fakeSubRepo{sub: sub}, &fakeNodeRepo{nodes: nodes}, "", "")
 	encoded, err := uc.GenerateSubscription(context.Background(), userID)
 	require.NoError(t, err)
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
@@ -238,6 +245,8 @@ func TestGenerateSubscription_NoActiveNodes_ReturnsError(t *testing.T) {
 		&fakeUserRepo{user: user},
 		&fakeSubRepo{sub: nil},
 		&fakeNodeRepo{nodes: nil},
+		"",
+		"",
 	)
 	_, err := uc.GenerateSubscription(context.Background(), userID)
 	require.Error(t, err)
@@ -257,6 +266,8 @@ func TestGenerateSubscription_ExpiredSub_FallbackToFree(t *testing.T) {
 		&fakeUserRepo{user: user},
 		&fakeSubRepo{sub: sub},
 		&fakeNodeRepo{nodes: makeTestNodes()},
+		"",
+		"",
 	)
 
 	encoded, err := uc.GenerateSubscription(context.Background(), userID)

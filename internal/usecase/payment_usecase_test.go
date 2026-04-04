@@ -209,7 +209,7 @@ func TestPaymentUseCase_CreatePayment(t *testing.T) {
 				pRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Payment")).Return(nil).Once()
 			}
 
-			uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
+			uc := usecase.NewPaymentUseCase(pRepo, nil, subUC, gw, "https://example.com", nil)
 			p, url, err := uc.CreatePayment(ctx, userID, tt.tier, tt.days)
 
 			if tt.wantErr {
@@ -250,7 +250,7 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_ActivatesSubscription(t *testing
 	subUC.On("ActivateSubscription", mock.Anything, userID, domain.TierPremium, 30).
 		Return(&domain.Subscription{ID: uuid.New(), UserID: userID, Tier: domain.TierPremium}, nil).Once()
 
-	uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
+	uc := usecase.NewPaymentUseCase(pRepo, nil, subUC, gw, "https://example.com", nil)
 
 	var ev usecase.WebhookEvent
 	ev.Object.ID = "prov-1"
@@ -284,7 +284,7 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_SecondDelivery_DoesNotActivateTw
 	subUC.On("ActivateSubscription", mock.Anything, userID, domain.TierBasic, 30).
 		Return(&domain.Subscription{ID: uuid.New(), UserID: userID, Tier: domain.TierBasic}, nil).Once()
 
-	uc := usecase.NewPaymentUseCase(pRepo, subUC, gw, "https://example.com", nil)
+	uc := usecase.NewPaymentUseCase(pRepo, nil, subUC, gw, "https://example.com", nil)
 
 	var ev usecase.WebhookEvent
 	ev.Object.ID = "prov-dup"
@@ -298,4 +298,3 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_SecondDelivery_DoesNotActivateTw
 
 	subUC.AssertNumberOfCalls(t, "ActivateSubscription", 1)
 }
-

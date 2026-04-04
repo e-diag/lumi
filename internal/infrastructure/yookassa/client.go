@@ -49,7 +49,7 @@ type Amount struct {
 }
 
 type Confirmation struct {
-	Type      string `json:"type"`       // "redirect"
+	Type      string `json:"type"` // "redirect"
 	ReturnURL string `json:"return_url"`
 }
 

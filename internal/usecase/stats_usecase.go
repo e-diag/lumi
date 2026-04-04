@@ -10,10 +10,11 @@ import (
 )
 
 type statsUseCase struct {
-	userRepo    repository.UserRepository
-	subRepo     repository.SubscriptionRepository
-	paymentRepo repository.PaymentRepository
-	nodeRepo    repository.NodeRepository
+	userRepo        repository.UserRepository
+	subRepo         repository.SubscriptionRepository
+	paymentRepo     repository.PaymentRepository
+	nodeRepo        repository.NodeRepository
+	vpnServerRepo   repository.VPNServerRepository // может быть nil
 }
 
 // NewStatsUseCase создаёт реализацию StatsUseCase.
@@ -22,12 +23,14 @@ func NewStatsUseCase(
 	subRepo repository.SubscriptionRepository,
 	paymentRepo repository.PaymentRepository,
 	nodeRepo repository.NodeRepository,
+	vpnServerRepo repository.VPNServerRepository,
 ) StatsUseCase {
 	return &statsUseCase{
-		userRepo:    userRepo,
-		subRepo:     subRepo,
-		paymentRepo: paymentRepo,
-		nodeRepo:    nodeRepo,
+		userRepo:      userRepo,
+		subRepo:       subRepo,
+		paymentRepo:   paymentRepo,
+		nodeRepo:      nodeRepo,
+		vpnServerRepo: vpnServerRepo,
 	}
 }
 
@@ -70,6 +73,10 @@ func (uc *statsUseCase) GetDashboardStats(ctx context.Context) (*DashboardStats,
 	if err != nil {
 		return nil, fmt.Errorf("usecase: dashboard active subscriptions: %w", err)
 	}
+	expiredSubs, err := uc.subRepo.CountExpired(ctx, now)
+	if err != nil {
+		return nil, fmt.Errorf("usecase: dashboard expired subscriptions: %w", err)
+	}
 
 	revenueToday, err := uc.paymentRepo.SumSucceededBetween(ctx, todayStart, now)
 	if err != nil {
@@ -82,6 +89,14 @@ func (uc *statsUseCase) GetDashboardStats(ctx context.Context) (*DashboardStats,
 	paymentsToday, err := uc.paymentRepo.CountSucceededBetween(ctx, todayStart, now)
 	if err != nil {
 		return nil, fmt.Errorf("usecase: dashboard payments today: %w", err)
+	}
+
+	var vpnSrvCount int64
+	if uc.vpnServerRepo != nil {
+		vpnSrvCount, err = uc.vpnServerRepo.Count(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("usecase: dashboard vpn servers count: %w", err)
+		}
 	}
 
 	nodes, err := uc.nodeRepo.GetAll(ctx)
@@ -135,17 +150,19 @@ func (uc *statsUseCase) GetDashboardStats(ctx context.Context) (*DashboardStats,
 	}
 
 	return &DashboardStats{
-		TotalUsers:          int(totalUsers),
-		FreeUsers:           free,
-		BasicUsers:          int(basic),
-		PremiumUsers:        int(premium),
-		ActiveSubscriptions: int(active),
-		RevenueToday:        float64(revenueToday),
-		RevenueMonth:        float64(revenueMonth),
-		PaymentsToday:       int(paymentsToday),
-		Nodes:               nodeStatuses,
-		RecentPayments:      recent,
-		NewUsersPerDay:      perDay,
+		TotalUsers:           int(totalUsers),
+		FreeUsers:            free,
+		BasicUsers:           int(basic),
+		PremiumUsers:         int(premium),
+		ActiveSubscriptions:  int(active),
+		ExpiredSubscriptions: int(expiredSubs),
+		RevenueToday:         float64(revenueToday),
+		RevenueMonth:         float64(revenueMonth),
+		PaymentsToday:        int(paymentsToday),
+		VPNServerRecords:     int(vpnSrvCount),
+		Nodes:                nodeStatuses,
+		RecentPayments:       recent,
+		NewUsersPerDay:       perDay,
 	}, nil
 }
 

@@ -23,4 +23,3 @@ func (h *Handler) handleFinance(ctx context.Context, b *tgbot.Bot, chatID int64,
 	}
 	h.edit(ctx, b, chatID, messageID, sb.String(), backMenu())
 }
-

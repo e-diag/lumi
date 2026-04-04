@@ -24,7 +24,7 @@ type NodeInbound struct {
 	// GRPCServiceName — имя gRPC-сервиса (например vless).
 	GRPCServiceName string `gorm:"size:128"`
 	// Priority — порядок в подписке: меньше = раньше (обычно Reality=10, WS=20, gRPC=30).
-	Priority int `gorm:"not null;default:100;index"`
+	Priority int  `gorm:"not null;default:100;index"`
 	Active   bool `gorm:"not null;default:true"`
 	// UseDomainPool — true: адрес подключения выбирается из node_domains; false: node.Host.
 	UseDomainPool bool `gorm:"not null;default:true"`

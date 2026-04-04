@@ -8,17 +8,21 @@ import (
 
 // User — зарегистрированный пользователь FreeWay VPN.
 type User struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
-	TelegramID int64     `gorm:"uniqueIndex;not null"`
-	Username   string    `gorm:"size:64"`
-	SubToken   string    `gorm:"uniqueIndex;not null"` // токен для /sub/{token}
-	DeviceLimit int      `gorm:"not null;default:1"`    // лимит устройств по тарифу
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
+	TelegramID  int64     `gorm:"uniqueIndex;not null"`
+	Username    string    `gorm:"size:64"`
+	SubToken    string    `gorm:"uniqueIndex;not null"` // токен для /sub/{token}
+	DeviceLimit int       `gorm:"not null;default:1"`   // лимит устройств по тарифу
 	// WelcomeBonusUsed — приветственный триал (3 дня Basic) уже выдан; защита от повторного триала.
 	WelcomeBonusUsed bool `gorm:"not null;default:false"`
 	// ReferredBy — UUID пригласившего пользователя (реферальная регистрация).
 	ReferredBy *uuid.UUID `gorm:"type:uuid;index"`
 	// ForceCDN — принудительно приоритизировать CDN-конфиги (жёсткие сети, белые списки).
 	ForceCDN bool `gorm:"not null;default:false"`
+	// PanelClientUUID — UUID клиента Xray внутри inbound 3x-ui (VLESS и т.д.).
+	PanelClientUUID string `gorm:"size:36"`
+	// PanelSubID — токен подписки в 3x-ui (путь /sub/{subId} на публичном sub-сервере панели).
+	PanelSubID string `gorm:"size:64;index"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 

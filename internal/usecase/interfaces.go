@@ -23,7 +23,9 @@ type UserUseCase interface {
 type TelegramStartOutcome struct {
 	IsNewUser        bool
 	TrialGranted     bool
+	TrialDays        int  // сколько дней триала выдано (из product_settings), если TrialGranted
 	TrialSkippedByIP bool // триал не выдан из‑за лимита по сети (аккаунт создан)
+	TrialSkippedGlobal bool // глобальный суточный лимит триалов
 }
 
 // TelegramClientMeta — опциональные данные клиента (IP/UA), если доступны (например за reverse-proxy).
@@ -110,6 +112,11 @@ type PaymentUseCase interface {
 	CancelStale(ctx context.Context, paymentID uuid.UUID) error
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]*domain.Payment, error)
 	ListByFilter(ctx context.Context, status string, period string, page, pageSize int) ([]*domain.Payment, int64, error)
+
+	// ListActivePlans — активные тарифы из БД (бот / админка).
+	ListActivePlans(ctx context.Context) ([]*domain.Plan, error)
+	// CreatePaymentByPlanCode — оплата по plans.code.
+	CreatePaymentByPlanCode(ctx context.Context, userID uuid.UUID, planCode string) (*domain.Payment, string, error)
 }
 
 // WebhookEvent — событие вебхука платежного провайдера (минимально, под ЮKassa).
@@ -131,9 +138,9 @@ type PaymentGateway interface {
 }
 
 type PaymentGatewayCreateRequest struct {
-	AmountValue string            // "299.00"
-	Currency    string            // "RUB"
-	ReturnURL   string            // куда вернётся пользователь после оплаты
+	AmountValue string // "299.00"
+	Currency    string // "RUB"
+	ReturnURL   string // куда вернётся пользователь после оплаты
 	Description string
 	Metadata    map[string]string // user_id, tier, days
 	Capture     bool
@@ -145,11 +152,15 @@ type PaymentGatewayPayment struct {
 	ConfirmationURL string
 }
 
-// RemnawaveClient — абстракция панели управления Xray-нодами.
-type RemnawaveClient interface {
-	CreateUser(ctx context.Context, userUUID, username string, tier domain.SubscriptionTier) error
-	DeleteUser(ctx context.Context, userUUID string) error
-	UpdateUserExpiry(ctx context.Context, userUUID string, expiresAt *time.Time) error
+// PanelSyncResult — идентификаторы клиента в панели 3x-ui после синхронизации.
+type PanelSyncResult struct {
+	ClientUUID string
+	SubID      string
+}
+
+// VPNPanelClient — синхронизация доступа с панелью 3x-ui (создание/продление/отключение клиента).
+type VPNPanelClient interface {
+	SyncUserAccess(ctx context.Context, user *domain.User, tier domain.SubscriptionTier, expiresAt *time.Time) (*PanelSyncResult, error)
 }
 
 type RoutingUseCase interface {
@@ -167,7 +178,7 @@ type RoutingLists struct {
 	Direct []string `json:"direct"`
 	Manual []string `json:"manual,omitempty"`
 	// DirectStrictMode — direct правила выше любого CDN-fallback.
-	DirectStrictMode bool `json:"direct_strict_mode"`
+	DirectStrictMode bool        `json:"direct_strict_mode"`
 	Meta             RoutingMeta `json:"meta"`
 }
 
@@ -177,17 +188,19 @@ type RoutingMeta struct {
 }
 
 type DashboardStats struct {
-	TotalUsers          int
-	FreeUsers           int
-	BasicUsers          int
-	PremiumUsers        int
-	ActiveSubscriptions int
-	RevenueToday        float64
-	RevenueMonth        float64
-	PaymentsToday       int
-	Nodes               []NodeStatus
-	RecentPayments      []PaymentSummary
-	NewUsersPerDay      []DailyCount
+	TotalUsers           int
+	FreeUsers            int
+	BasicUsers           int
+	PremiumUsers         int
+	ActiveSubscriptions  int
+	ExpiredSubscriptions int
+	RevenueToday         float64
+	RevenueMonth         float64
+	PaymentsToday        int
+	VPNServerRecords     int // записи каталога серверов (админка), не путать с нодами подписки
+	Nodes                []NodeStatus
+	RecentPayments       []PaymentSummary
+	NewUsersPerDay       []DailyCount
 }
 
 type NodeStatus struct {

@@ -136,4 +136,3 @@ func (uc *routingUseCase) fetchList(ctx context.Context, endpoint string) ([]str
 	}
 	return out, nil
 }
-

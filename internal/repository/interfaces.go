@@ -30,6 +30,8 @@ type SubscriptionRepository interface {
 	ListExpiringBetween(ctx context.Context, from, to time.Time) ([]*domain.Subscription, error)
 	CountActive(ctx context.Context, now time.Time) (int64, error)
 	CountActiveByTier(ctx context.Context, tier domain.SubscriptionTier, now time.Time) (int64, error)
+	// CountExpired — подписки с expires_at < now (включая уже даунгрейднутые записи).
+	CountExpired(ctx context.Context, now time.Time) (int64, error)
 	Update(ctx context.Context, sub *domain.Subscription) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -93,10 +95,38 @@ type RoutingRepository interface {
 // BotAntiAbuseRepository — аудит триалов и реферальных бонусов из Telegram-бота.
 type BotAntiAbuseRepository interface {
 	CountTrialGrantsByIP(ctx context.Context, ip string) (int64, error)
+	CountTrialGrantsGloballySince(ctx context.Context, since time.Time) (int64, error)
 	InsertTrialSignup(ctx context.Context, row *domain.BotTrialSignup) error
 	GetFirstTrialSignupIPForUser(ctx context.Context, userID uuid.UUID) (string, error)
 	CountReferralGrantsSince(ctx context.Context, inviterID uuid.UUID, since time.Time) (int64, error)
 	InsertReferralGrant(ctx context.Context, row *domain.ReferralBonusLog) error
+}
+
+// PlanRepository — тарифы из БД.
+type PlanRepository interface {
+	Create(ctx context.Context, p *domain.Plan) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.Plan, error)
+	GetByCode(ctx context.Context, code string) (*domain.Plan, error)
+	ListActive(ctx context.Context) ([]*domain.Plan, error)
+	ListAll(ctx context.Context) ([]*domain.Plan, error)
+	Update(ctx context.Context, p *domain.Plan) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// ProductSettingsRepository — глобальные настройки продукта (одна строка).
+type ProductSettingsRepository interface {
+	Get(ctx context.Context) (*domain.ProductSettings, error)
+	Upsert(ctx context.Context, s *domain.ProductSettings) error
+}
+
+// VPNServerRepository — учёт серверов для админки.
+type VPNServerRepository interface {
+	Create(ctx context.Context, s *domain.VPNServer) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.VPNServer, error)
+	ListAll(ctx context.Context) ([]*domain.VPNServer, error)
+	Count(ctx context.Context) (int64, error)
+	Update(ctx context.Context, s *domain.VPNServer) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // AccessProbeRepository — мягкий учёт обращений к подписке (последние N записей на пользователя).

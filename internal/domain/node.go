@@ -26,23 +26,23 @@ const (
 type Node struct {
 	ID        uuid.UUID     `gorm:"type:uuid;primaryKey"`
 	Name      string        `gorm:"not null"`
-	Host      string        `gorm:"not null"`       // IP или домен
+	Host      string        `gorm:"not null"` // IP или домен
 	Port      int           `gorm:"not null"`
 	Region    NodeRegion    `gorm:"not null;index"`
 	Transport NodeTransport `gorm:"not null"`
-	PublicKey string        `gorm:"size:256"`       // для Reality
-	ShortID   string        `gorm:"size:64"`        // для Reality
-	SNI       string        `gorm:"size:256"`       // ServerName для Reality/TLS
+	PublicKey string        `gorm:"size:256"` // для Reality
+	ShortID   string        `gorm:"size:64"`  // для Reality
+	SNI       string        `gorm:"size:256"` // ServerName для Reality/TLS
 	// gRPC параметры (для CDN-ноды)
 	GRPCServiceName string `gorm:"size:128"`
 	// WebSocket параметры (устаревшие, оставить для совместимости)
 	WSPath string `gorm:"size:256"`
 	WSHost string `gorm:"size:256"`
 	// Legacy alias для старого поля (используется в старом коде/тестах).
-	Path string `gorm:"-"`
-	Active    bool          `gorm:"default:true"`
-	LatencyMs int           `gorm:"not null;default:0"`
-	FailCount int           `gorm:"not null;default:0"` // подряд неудачных проверок
+	Path      string `gorm:"-"`
+	Active    bool   `gorm:"default:true"`
+	LatencyMs int    `gorm:"not null;default:0"`
+	FailCount int    `gorm:"not null;default:0"` // подряд неудачных проверок
 	// HealthScore — агрегированная оценка 0–100 (выше лучше); влияет на порядок в подписке.
 	HealthScore float64 `gorm:"not null;default:100"`
 	// ProbeOK / ProbeTotal — накопительная статистика успешных проб (TLS handshake).

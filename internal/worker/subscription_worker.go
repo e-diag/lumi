@@ -9,8 +9,8 @@ import (
 )
 
 type SubscriptionWorker struct {
-	subUC     usecase.SubscriptionUseCase
-	interval  time.Duration
+	subUC    usecase.SubscriptionUseCase
+	interval time.Duration
 }
 
 func NewSubscriptionWorker(subUC usecase.SubscriptionUseCase) *SubscriptionWorker {
@@ -50,4 +50,3 @@ func (w *SubscriptionWorker) run(ctx context.Context) {
 		slog.Info("subscription expiring soon", "user_id", s.UserID, "tier", s.Tier, "expires_at", s.ExpiresAt)
 	}
 }
-

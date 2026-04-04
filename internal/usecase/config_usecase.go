@@ -5,7 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
+	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +25,11 @@ type configUseCase struct {
 	subRepo  repository.SubscriptionRepository
 	nodeRepo repository.NodeRepository
 
+	// panelSub — публичный URL sub-сервера 3x-ui (если пусто; используется только локальная генерация VLESS).
+	panelSubBase string
+	panelSubPath string
+	panelHTTP    *http.Client
+
 	cacheTTL time.Duration
 	cacheMu  sync.Mutex
 	cache    map[string]subCacheEntry
@@ -37,11 +45,21 @@ func NewConfigUseCase(
 	userRepo repository.UserRepository,
 	subRepo repository.SubscriptionRepository,
 	nodeRepo repository.NodeRepository,
+	panelSubBaseURL string,
+	panelSubPath string,
 ) ConfigUseCase {
+	if strings.TrimSpace(panelSubPath) == "" {
+		panelSubPath = "sub"
+	}
 	return &configUseCase{
-		userRepo: userRepo,
-		subRepo:  subRepo,
-		nodeRepo: nodeRepo,
+		userRepo:     userRepo,
+		subRepo:      subRepo,
+		nodeRepo:     nodeRepo,
+		panelSubBase: strings.TrimSpace(panelSubBaseURL),
+		panelSubPath: panelSubPath,
+		panelHTTP: &http.Client{
+			Timeout: 25 * time.Second,
+		},
 		cacheTTL: 45 * time.Second,
 		cache:    make(map[string]subCacheEntry),
 	}
@@ -75,6 +93,16 @@ func (uc *configUseCase) GenerateSubscription(ctx context.Context, userUUID uuid
 	user, err := uc.userRepo.GetByID(ctx, userUUID)
 	if err != nil {
 		return "", fmt.Errorf("usecase: config generate: %w", err)
+	}
+
+	if uc.panelSubBase != "" && strings.TrimSpace(user.PanelSubID) != "" {
+		body, err := uc.fetchPanelSubscription(ctx, user.PanelSubID)
+		if err != nil {
+			return "", fmt.Errorf("usecase: config from 3x-ui: %w", err)
+		}
+		if strings.TrimSpace(body) != "" {
+			return strings.TrimSpace(body), nil
+		}
 	}
 
 	sub, err := uc.subRepo.GetByUserID(ctx, userUUID)
@@ -132,6 +160,31 @@ func (uc *configUseCase) GenerateSubscription(ctx context.Context, userUUID uuid
 	out := base64.StdEncoding.EncodeToString([]byte(raw))
 	uc.setCached(cacheKey, out)
 	return out, nil
+}
+
+func (uc *configUseCase) fetchPanelSubscription(ctx context.Context, subID string) (string, error) {
+	u, err := url.JoinPath(strings.TrimRight(uc.panelSubBase, "/"), uc.panelSubPath, subID)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "text/plain, */*")
+	res, err := uc.panelHTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return "", fmt.Errorf("subscription http %d", res.StatusCode)
+	}
+	return string(b), nil
 }
 
 func appendUniqueRegion(regions []domain.NodeRegion, r domain.NodeRegion) []domain.NodeRegion {

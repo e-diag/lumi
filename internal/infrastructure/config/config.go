@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -26,14 +28,15 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	Bot      BotConfig      `yaml:"bot"`
 	Web      WebConfig      `yaml:"web"`
-	Remnawave RemnawaveConfig `yaml:"remnawave"`
-	Yookassa YookassaConfig  `yaml:"yookassa"`
+	// XUI — панель 3x-ui (провижининг клиентов и источник подписки для клиентов Happ / v2RayTun).
+	XUI      XUIConfig      `yaml:"xui"`
+	Yookassa YookassaConfig `yaml:"yookassa"`
 }
 
 // ServerConfig — параметры HTTP-сервера.
 type ServerConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host    string `yaml:"host"`
+	Port    int    `yaml:"port"`
 	BaseURL string `yaml:"base_url"` // публичный URL для генерации ссылок
 }
 
@@ -62,6 +65,10 @@ type BotConfig struct {
 	MaxTrialsPerIP int `yaml:"max_trials_per_ip"`
 	// ReferralBonusMaxPerMonth — потолок реферальных +3 дня у пригласившего в месяц (0 = без лимита).
 	ReferralBonusMaxPerMonth int `yaml:"referral_bonus_max_per_month"`
+	// SupportURL — ссылка на поддержку (Telegram-группа, @username или веб).
+	SupportURL string `yaml:"support_url"`
+	// TrialGlobalCapPer24h — максимум выданных триалов за последние 24 ч по всему сервису (0 = без лимита).
+	TrialGlobalCapPer24h int `yaml:"trial_global_cap_per_24h"`
 }
 
 // WebConfig — настройки веб-панели администратора.
@@ -71,10 +78,17 @@ type WebConfig struct {
 	AdminToken string `yaml:"admin_token"`
 }
 
-// RemnawaveConfig — параметры подключения к Remnawave API.
-type RemnawaveConfig struct {
-	BaseURL string `yaml:"base_url"`
-	APIKey  string `yaml:"api_key"`
+// XUIConfig — доступ к веб-панели 3x-ui и публичному subscription-серверу.
+// BaseURL — полный корень панели, включая путь из настроек «URI Path» (например https://host:2053/panel).
+type XUIConfig struct {
+	BaseURL   string `yaml:"base_url"`
+	Username  string `yaml:"username"`
+	Password  string `yaml:"password"`
+	InboundID int    `yaml:"inbound_id"`
+	// PublicSubscriptionBaseURL — базовый URL sub-сервера (часто отдельный порт в 3x-ui), без завершающего слэша.
+	PublicSubscriptionBaseURL string `yaml:"public_subscription_base_url"`
+	// SubscriptionPath — сегмент пути перед subId (в настройках подписки панели), по умолчанию «sub».
+	SubscriptionPath string `yaml:"subscription_path"`
 }
 
 // YookassaConfig — параметры ЮKassa.
@@ -122,6 +136,14 @@ func applyDefaults(c *Config) {
 	}
 	if c.Bot.PaymentDefaultDays <= 0 {
 		c.Bot.PaymentDefaultDays = 30
+	}
+	if v := strings.TrimSpace(os.Getenv("XUI_INBOUND_ID")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.XUI.InboundID = n
+		}
+	}
+	if strings.TrimSpace(c.XUI.SubscriptionPath) == "" {
+		c.XUI.SubscriptionPath = "sub"
 	}
 }
 

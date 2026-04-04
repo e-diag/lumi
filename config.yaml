@@ -18,15 +18,21 @@ bot:
   payment_default_days: 30
   max_trials_per_ip: 3
   referral_bonus_max_per_month: 30
+  support_url: "${TELEGRAM_SUPPORT_URL}"
+  trial_global_cap_per_24h: 0
 
 web:
   host: "0.0.0.0"
   port: 3000
   admin_token: "${ADMIN_WEB_TOKEN}"
 
-remnawave:
-  base_url: "${REMNAWAVE_BASE_URL}"
-  api_key: "${REMNAWAVE_API_KEY}"
+xui:
+  base_url: "${XUI_BASE_URL}"
+  username: "${XUI_USERNAME}"
+  password: "${XUI_PASSWORD}"
+  inbound_id: 1
+  public_subscription_base_url: "${XUI_PUBLIC_SUBSCRIPTION_BASE_URL}"
+  subscription_path: "${XUI_SUBSCRIPTION_PATH}"
 
 yookassa:
   shop_id: "${YOOKASSA_SHOP_ID}"

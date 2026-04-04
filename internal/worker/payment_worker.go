@@ -63,4 +63,3 @@ func (w *PaymentWorker) run(ctx context.Context) {
 		}
 	}
 }
-

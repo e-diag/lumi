@@ -75,9 +75,9 @@ func (r *routingRepository) SaveDomains(ctx context.Context, source string, acti
 	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "value"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"source":    source,
-			"action":    action,
-			"active":    true,
+			"source":     source,
+			"action":     action,
+			"active":     true,
 			"updated_at": now,
 		}),
 	}).Create(&rules).Error; err != nil {

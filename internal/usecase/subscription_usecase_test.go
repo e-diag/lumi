@@ -48,6 +48,10 @@ func (m *mockSubRepo) CountActiveByTier(ctx context.Context, tier domain.Subscri
 	args := m.Called(ctx, tier, now)
 	return args.Get(0).(int64), args.Error(1)
 }
+func (m *mockSubRepo) CountExpired(ctx context.Context, now time.Time) (int64, error) {
+	args := m.Called(ctx, now)
+	return args.Get(0).(int64), args.Error(1)
+}
 func (m *mockSubRepo) Update(ctx context.Context, sub *domain.Subscription) error {
 	args := m.Called(ctx, sub)
 	return args.Error(0)
@@ -108,19 +112,14 @@ func (m *mockUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
-type mockRemnawave struct{ mock.Mock }
+type mockVPNPanel struct{ mock.Mock }
 
-func (m *mockRemnawave) CreateUser(ctx context.Context, userUUID, username string, tier domain.SubscriptionTier) error {
-	args := m.Called(ctx, userUUID, username, tier)
-	return args.Error(0)
-}
-func (m *mockRemnawave) DeleteUser(ctx context.Context, userUUID string) error {
-	args := m.Called(ctx, userUUID)
-	return args.Error(0)
-}
-func (m *mockRemnawave) UpdateUserExpiry(ctx context.Context, userUUID string, expiresAt *time.Time) error {
-	args := m.Called(ctx, userUUID, expiresAt)
-	return args.Error(0)
+func (m *mockVPNPanel) SyncUserAccess(ctx context.Context, user *domain.User, tier domain.SubscriptionTier, expiresAt *time.Time) (*usecase.PanelSyncResult, error) {
+	args := m.Called(ctx, user, tier, expiresAt)
+	if v := args.Get(0); v != nil {
+		return v.(*usecase.PanelSyncResult), args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func TestSubscriptionUseCase_ActivateSubscription_ExtendsIfActive(t *testing.T) {
@@ -138,16 +137,16 @@ func TestSubscriptionUseCase_ActivateSubscription_ExtendsIfActive(t *testing.T) 
 
 	subRepo := &mockSubRepo{}
 	userRepo := &mockUserRepo{}
-	rem := &mockRemnawave{}
+	panel := &mockVPNPanel{}
 
 	subRepo.On("GetByUserID", mock.Anything, userID).Return(existing, nil).Once()
 	subRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.Subscription")).Return(nil).Once()
 
 	userRepo.On("GetByID", mock.Anything, userID).Return(user, nil).Once()
 	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
-	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+	panel.On("SyncUserAccess", mock.Anything, mock.AnythingOfType("*domain.User"), mock.Anything, mock.Anything).Return(&usecase.PanelSyncResult{}, nil).Once()
 
-	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, panel)
 	got, err := uc.ActivateSubscription(ctx, userID, domain.TierPremium, 30)
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -171,16 +170,16 @@ func TestSubscriptionUseCase_ExpireOld_DowngradesToFree(t *testing.T) {
 
 	subRepo := &mockSubRepo{}
 	userRepo := &mockUserRepo{}
-	rem := &mockRemnawave{}
+	panel := &mockVPNPanel{}
 
 	subRepo.On("ListExpiredBefore", mock.Anything, mock.Anything).Return([]*domain.Subscription{expired}, nil).Once()
 	subRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.Subscription")).Return(nil).Once()
 
 	userRepo.On("GetByID", mock.Anything, userID).Return(user, nil).Once()
 	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
-	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+	panel.On("SyncUserAccess", mock.Anything, mock.AnythingOfType("*domain.User"), mock.Anything, mock.Anything).Return(&usecase.PanelSyncResult{}, nil).Once()
 
-	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, panel)
 	require.NoError(t, uc.ExpireOld(ctx))
 }
 
@@ -191,15 +190,15 @@ func TestSubscriptionUseCase_AddBonusDays_NoSubscription_CreatesBasic(t *testing
 
 	subRepo := &mockSubRepo{}
 	userRepo := &mockUserRepo{}
-	rem := &mockRemnawave{}
+	panel := &mockVPNPanel{}
 
 	subRepo.On("GetByUserID", mock.Anything, userID).Return(nil, domain.ErrSubscriptionNotFound).Twice()
 	subRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Subscription")).Return(nil).Once()
 	userRepo.On("GetByID", mock.Anything, userID).Return(&domain.User{ID: userID, DeviceLimit: 1}, nil).Once()
 	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
-	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+	panel.On("SyncUserAccess", mock.Anything, mock.AnythingOfType("*domain.User"), mock.Anything, mock.Anything).Return(&usecase.PanelSyncResult{}, nil).Once()
 
-	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, panel)
 	require.NoError(t, uc.AddBonusDays(ctx, userID, 3))
 }
 
@@ -217,7 +216,7 @@ func TestSubscriptionUseCase_AddBonusDays_ExtendsFromMaxNowOrExpiry(t *testing.T
 
 	subRepo := &mockSubRepo{}
 	userRepo := &mockUserRepo{}
-	rem := &mockRemnawave{}
+	panel := &mockVPNPanel{}
 
 	subRepo.On("GetByUserID", mock.Anything, userID).Return(sub, nil).Once()
 	subRepo.On("Update", mock.Anything, mock.MatchedBy(func(s *domain.Subscription) bool {
@@ -225,9 +224,8 @@ func TestSubscriptionUseCase_AddBonusDays_ExtendsFromMaxNowOrExpiry(t *testing.T
 	})).Return(nil).Once()
 	userRepo.On("GetByID", mock.Anything, userID).Return(&domain.User{ID: userID}, nil).Once()
 	userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Once()
-	rem.On("UpdateUserExpiry", mock.Anything, userID.String(), mock.Anything).Return(nil).Once()
+	panel.On("SyncUserAccess", mock.Anything, mock.AnythingOfType("*domain.User"), mock.Anything, mock.Anything).Return(&usecase.PanelSyncResult{}, nil).Once()
 
-	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, rem)
+	uc := usecase.NewSubscriptionUseCase(subRepo, userRepo, panel)
 	require.NoError(t, uc.AddBonusDays(ctx, userID, 5))
 }
-

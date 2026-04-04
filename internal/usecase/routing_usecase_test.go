@@ -15,16 +15,22 @@ type fakeRoutingRepo struct {
 	list *domain.RoutingList
 }
 
-func (f *fakeRoutingRepo) GetAll(context.Context) ([]*domain.RoutingRule, error)                    { return nil, nil }
-func (f *fakeRoutingRepo) GetActive(context.Context) ([]*domain.RoutingRule, error)                 { return nil, nil }
-func (f *fakeRoutingRepo) Create(context.Context, *domain.RoutingRule) error                        { return nil }
-func (f *fakeRoutingRepo) Update(context.Context, *domain.RoutingRule) error                        { return nil }
-func (f *fakeRoutingRepo) Delete(context.Context, uuid.UUID) error                                   { return nil }
-func (f *fakeRoutingRepo) GetVersion(context.Context) (string, error)                                { return "2026-03-27", nil }
-func (f *fakeRoutingRepo) AddManualDomain(context.Context, string, domain.RouteAction) error        { return nil }
-func (f *fakeRoutingRepo) DeleteManualDomain(context.Context, string) error                          { return nil }
-func (f *fakeRoutingRepo) SaveDomains(context.Context, string, domain.RouteAction, []string) error  { return nil }
-func (f *fakeRoutingRepo) GetRoutingList(context.Context) (*domain.RoutingList, error) { return f.list, nil }
+func (f *fakeRoutingRepo) GetAll(context.Context) ([]*domain.RoutingRule, error)    { return nil, nil }
+func (f *fakeRoutingRepo) GetActive(context.Context) ([]*domain.RoutingRule, error) { return nil, nil }
+func (f *fakeRoutingRepo) Create(context.Context, *domain.RoutingRule) error        { return nil }
+func (f *fakeRoutingRepo) Update(context.Context, *domain.RoutingRule) error        { return nil }
+func (f *fakeRoutingRepo) Delete(context.Context, uuid.UUID) error                  { return nil }
+func (f *fakeRoutingRepo) GetVersion(context.Context) (string, error)               { return "2026-03-27", nil }
+func (f *fakeRoutingRepo) AddManualDomain(context.Context, string, domain.RouteAction) error {
+	return nil
+}
+func (f *fakeRoutingRepo) DeleteManualDomain(context.Context, string) error { return nil }
+func (f *fakeRoutingRepo) SaveDomains(context.Context, string, domain.RouteAction, []string) error {
+	return nil
+}
+func (f *fakeRoutingRepo) GetRoutingList(context.Context) (*domain.RoutingList, error) {
+	return f.list, nil
+}
 
 func TestRoutingUseCase_GetLists(t *testing.T) {
 	repo := &fakeRoutingRepo{
@@ -90,15 +96,23 @@ type capturingRoutingRepo struct {
 	calls []saveCall
 }
 
-func (f *capturingRoutingRepo) GetAll(context.Context) ([]*domain.RoutingRule, error)                   { return nil, nil }
-func (f *capturingRoutingRepo) GetActive(context.Context) ([]*domain.RoutingRule, error)                { return nil, nil }
-func (f *capturingRoutingRepo) Create(context.Context, *domain.RoutingRule) error                       { return nil }
-func (f *capturingRoutingRepo) Update(context.Context, *domain.RoutingRule) error                       { return nil }
-func (f *capturingRoutingRepo) Delete(context.Context, uuid.UUID) error                                  { return nil }
-func (f *capturingRoutingRepo) GetVersion(context.Context) (string, error)                               { return "", nil }
-func (f *capturingRoutingRepo) AddManualDomain(context.Context, string, domain.RouteAction) error       { return nil }
-func (f *capturingRoutingRepo) DeleteManualDomain(context.Context, string) error                         { return nil }
-func (f *capturingRoutingRepo) GetRoutingList(context.Context) (*domain.RoutingList, error)             { return &domain.RoutingList{}, nil }
+func (f *capturingRoutingRepo) GetAll(context.Context) ([]*domain.RoutingRule, error) {
+	return nil, nil
+}
+func (f *capturingRoutingRepo) GetActive(context.Context) ([]*domain.RoutingRule, error) {
+	return nil, nil
+}
+func (f *capturingRoutingRepo) Create(context.Context, *domain.RoutingRule) error { return nil }
+func (f *capturingRoutingRepo) Update(context.Context, *domain.RoutingRule) error { return nil }
+func (f *capturingRoutingRepo) Delete(context.Context, uuid.UUID) error           { return nil }
+func (f *capturingRoutingRepo) GetVersion(context.Context) (string, error)        { return "", nil }
+func (f *capturingRoutingRepo) AddManualDomain(context.Context, string, domain.RouteAction) error {
+	return nil
+}
+func (f *capturingRoutingRepo) DeleteManualDomain(context.Context, string) error { return nil }
+func (f *capturingRoutingRepo) GetRoutingList(context.Context) (*domain.RoutingList, error) {
+	return &domain.RoutingList{}, nil
+}
 func (f *capturingRoutingRepo) SaveDomains(_ context.Context, source string, action domain.RouteAction, domains []string) error {
 	f.calls = append(f.calls, saveCall{source: source, action: action, count: len(domains)})
 	return nil
@@ -135,4 +149,3 @@ func TestRoutingUseCase_UpdateFromAntifilter(t *testing.T) {
 		t.Fatalf("expected 3 save calls, got %d", len(repo.calls))
 	}
 }
-

@@ -51,4 +51,3 @@ func durationToNext3UTC(now time.Time) time.Duration {
 	}
 	return next.Sub(now)
 }
-

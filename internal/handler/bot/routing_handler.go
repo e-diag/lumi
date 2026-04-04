@@ -71,4 +71,3 @@ func (h *Handler) handleRoutingAddAction(ctx context.Context, b *tgbot.Bot, chat
 	}
 	h.edit(ctx, b, chatID, messageID, fmt.Sprintf("Домен %s добавлен в %s", domainValue, action), backMenu())
 }
-

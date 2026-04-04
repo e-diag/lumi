@@ -54,4 +54,3 @@ func (a *GatewayAdapter) GetPayment(ctx context.Context, providerID string) (*us
 		ConfirmationURL: resp.Confirmation.ConfirmationURL,
 	}, nil
 }
-

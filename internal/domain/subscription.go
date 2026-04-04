@@ -17,9 +17,9 @@ const (
 
 // TierLimits описывает ограничения тарифа.
 type TierLimits struct {
-	SpeedMbps  int            // 0 = без ограничений
-	Devices    int            // максимум устройств
-	Regions    []NodeRegion   // доступные регионы
+	SpeedMbps int          // 0 = без ограничений
+	Devices   int          // максимум устройств
+	Regions   []NodeRegion // доступные регионы
 }
 
 // TierLimitsMap — лимиты для каждого тарифа.
