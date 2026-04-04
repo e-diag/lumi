@@ -1,7 +1,8 @@
 # Сборка: каталог с этим файлом = контекст Docker. Нужен полный clone репозитория (рядом каталоги cmd/, internal/).
 #
 # DATABASE_DSN ниже переопределяет значение из .env для api/bot/web/migrator: внутри контейнера
-# хост БД — сервис postgres, не localhost. Пароль должен совпадать с POSTGRES_PASSWORD.
+# хост БД — сервис postgres, не localhost. Пароль только через PGPASSWORD (= POSTGRES_PASSWORD),
+# не в URL — иначе символы @ : / # ломают DSN, а несовпадение с томом даёт 28P01.
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,7 +27,8 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
-      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
     ports:
       - "8080:8080"
     depends_on:
@@ -46,7 +48,8 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
-      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +65,8 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
-      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,7 +77,8 @@ services:
     env_file: .env
     environment:
       CONFIG_PATH: /app/config.yaml
-      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_DSN: postgres://${POSTGRES_USER:-freeway}@postgres:5432/${POSTGRES_DB:-freeway}?sslmode=disable
       WEB_TEMPLATE_DIR: /app/internal/handler/web/templates
     ports:
       - "3000:3000"
