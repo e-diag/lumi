@@ -24,24 +24,31 @@ func (h *Handler) handleBroadcastSend(ctx context.Context, b *tgbot.Bot, adminID
 		return
 	}
 
-	users, _, err := h.userUC.List(ctx, "", 1, 100000)
-	if err != nil {
-		h.edit(ctx, b, chatID, messageID, "Ошибка получения пользователей", backMenu())
-		return
-	}
-
+	const pageSize = 500
+	page := 1
 	sent := 0
 	errorsCount := 0
-	for _, u := range users {
-		_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
-			ChatID: u.TelegramID,
-			Text:   text,
-		})
+	for {
+		users, total, err := h.userUC.List(ctx, "", page, pageSize)
 		if err != nil {
-			errorsCount++
-		} else {
-			sent++
+			h.edit(ctx, b, chatID, messageID, "Ошибка получения пользователей", backMenu())
+			return
 		}
+		for _, u := range users {
+			_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
+				ChatID: u.TelegramID,
+				Text:   text,
+			})
+			if err != nil {
+				errorsCount++
+			} else {
+				sent++
+			}
+		}
+		if int64(page*pageSize) >= total {
+			break
+		}
+		page++
 	}
 	h.edit(ctx, b, chatID, messageID, fmt.Sprintf("Отправлено: %d, Ошибок: %d", sent, errorsCount), backMenu())
 }

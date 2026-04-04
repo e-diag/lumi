@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/freeway-vpn/backend/internal/domain"
+	"github.com/freeway-vpn/backend/internal/logredact"
 	"github.com/freeway-vpn/backend/internal/repository"
 	"github.com/google/uuid"
 )
@@ -130,7 +131,7 @@ func (uc *paymentUseCase) applySucceededByYookassaID(ctx context.Context, yookas
 		return nil, fmt.Errorf("usecase: claim succeeded: %w", err)
 	}
 	if p == nil {
-		slog.Warn("payment webhook: unknown yookassa id", "yookassa_id", yookassaID)
+		slog.Warn("payment webhook: unknown yookassa id", "yookassa_id", logredact.ProviderPaymentIDForLog(yookassaID))
 		return nil, nil
 	}
 	if !claimed && p.Status != domain.PaymentSucceeded {
@@ -260,6 +261,10 @@ func (uc *paymentUseCase) ListByFilter(ctx context.Context, status string, perio
 	}
 	if pageSize <= 0 {
 		pageSize = 50
+	}
+	const maxPageSize = 200
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 	offset := (page - 1) * pageSize
 

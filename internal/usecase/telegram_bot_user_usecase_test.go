@@ -105,6 +105,23 @@ func TestTelegramBotUser_OnStart_NewUser_GrantsTrial(t *testing.T) {
 	assert.True(t, u.WelcomeBonusUsed)
 }
 
+func TestTelegramBotUser_OnStart_ExistingUser_WelcomeUsed_NoSecondTrial(t *testing.T) {
+	t.Parallel()
+	existing := domain.NewUser(111, "old")
+	existing.WelcomeBonusUsed = true
+	repo := &memUserRepo{users: []*domain.User{existing}}
+	sub := &stubTelegramSubUC{}
+	uc := usecase.NewTelegramBotUserUseCase(repo, sub, nil, 0, 0, nil, 0)
+
+	u, out, err := uc.OnStart(context.Background(), 111, "old", nil, usecase.TelegramClientMeta{})
+	require.NoError(t, err)
+	require.Equal(t, existing.ID, u.ID)
+	require.False(t, out.TrialGranted)
+	require.False(t, out.IsNewUser)
+	assert.Equal(t, 0, sub.activateCalls)
+	assert.Equal(t, 0, sub.bonusCalls)
+}
+
 func TestTelegramBotUser_OnStart_Referral_GrantsBonusToInviter(t *testing.T) {
 	t.Parallel()
 	inviter := domain.NewUser(900001, "inviter")

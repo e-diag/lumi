@@ -184,6 +184,14 @@ func (c *Config) ValidateBot() error {
 	return nil
 }
 
+// ValidateMigrator проверяет минимальный набор для cmd/migrator (только схема БД).
+func (c *Config) ValidateMigrator() error {
+	if c.Database.DSN == "" {
+		return fmt.Errorf("config: DATABASE_DSN is required for migrator")
+	}
+	return nil
+}
+
 // ValidateWeb проверяет обязательные поля для cmd/web.
 func (c *Config) ValidateWeb() error {
 	if c.Database.DSN == "" {

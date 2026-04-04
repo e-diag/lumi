@@ -298,3 +298,15 @@ func TestPaymentUseCase_HandleWebhook_Succeeded_SecondDelivery_DoesNotActivateTw
 
 	subUC.AssertNumberOfCalls(t, "ActivateSubscription", 1)
 }
+
+func TestPaymentUseCase_ListByFilter_CapsPageSize(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pRepo := &mockPaymentRepo{}
+	pRepo.On("ListByFilter", mock.Anything, "", mock.Anything, mock.Anything, 200, 0).
+		Return([]*domain.Payment{}, int64(0), nil).Once()
+	uc := usecase.NewPaymentUseCase(pRepo, nil, &mockSubUC{}, &mockGateway{}, "https://example.com", nil)
+	_, _, err := uc.ListByFilter(ctx, "", "month", 1, 9999)
+	require.NoError(t, err)
+	pRepo.AssertExpectations(t)
+}

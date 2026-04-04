@@ -1,3 +1,11 @@
+# Пример продакшен-стека: образ из GHCR (после CI), без build на сервере.
+# Скопируйте рядом с .env, подставьте ghcr.io/<owner>/<repo>:latest и запускайте из каталога DEPLOY_PATH.
+#
+# Перед первым up: docker compose -f docker-compose.prod.example.yml pull
+# Миграция схемы (тот же образ, что api): 
+#   docker compose -f docker-compose.prod.example.yml run --rm api /app/migrator
+# Затем: docker compose -f docker-compose.prod.example.yml up -d
+#
 version: "3.9"
 
 services:
@@ -9,9 +17,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # Локальная разработка: порт наружу удобен для GUI-клиентов. В продакшене см. docker-compose.prod.example.yml (без publish).
-    ports:
-      - "5432:5432"
+    # В продакшене не публикуйте порт PostgreSQL наружу: доступ только из сети compose.
+    # Для ад-hoc psql с хоста временно добавьте ports: ["127.0.0.1:5432:5432"].
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U freeway"]
       interval: 5s
@@ -19,7 +26,8 @@ services:
       retries: 5
 
   api:
-    build: .
+    image: ghcr.io/OWNER/REPO:latest
+    pull_policy: always
     command: /app/api
     env_file: .env
     environment:
@@ -35,10 +43,11 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
 
   bot:
-    build: .
+    image: ghcr.io/OWNER/REPO:latest
+    pull_policy: always
     command: /app/bot
     env_file: .env
     environment:
@@ -50,20 +59,9 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Одноразовый прогон схемы БД: docker compose --profile tools run --rm migrator
-  migrator:
-    profiles: [tools]
-    build: .
-    command: /app/migrator
-    env_file: .env
-    environment:
-      CONFIG_PATH: /app/config.yaml
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   web:
-    build: .
+    image: ghcr.io/OWNER/REPO:latest
+    pull_policy: always
     command: /app/web
     env_file: .env
     environment:
@@ -80,18 +78,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
-      start_period: 15s
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@freeway-vpn.ru
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    profiles: ["dev"]
+      start_period: 20s
 
 volumes:
   postgres_data:

@@ -70,6 +70,10 @@ func (uc *userUseCase) List(ctx context.Context, query string, page, pageSize in
 	if pageSize <= 0 {
 		pageSize = 50
 	}
+	const maxPageSize = 500
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
 	offset := (page - 1) * pageSize
 	users, total, err := uc.userRepo.List(ctx, query, pageSize, offset)
 	if err != nil {
